@@ -2606,7 +2606,12 @@ async function purchaseApply(country_id, level) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'unknown');
     const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
-    toast(`📋 ${meta.flag} ${meta.name} · 采购单 L${level}: ${data.po.product} (持单 ${data.active_count}/${data.limit})`, 'ok', 3400);
+    const pool = Array.isArray(data.pool) ? data.pool : [];
+    const held = Array.isArray(data.pool_held) ? data.pool_held : [];
+    const poolStr = pool.length
+      ? ` · 抽自 [${pool.length} 候选: ${pool.map(n => held.includes(n) ? `${n}(已持)` : n).join(', ')}]`
+      : '';
+    toast(`📋 ${meta.flag} ${meta.name} · L${level} 采购单: ${data.po.product} (持单 ${data.active_count}/${data.limit})${poolStr}`, 'ok', 5000);
     await fetchData();
     if (purchaseState.country_id === country_id) refreshPurchaseModal();
   } catch (err) {

@@ -896,7 +896,10 @@ function purchaseApply_(body) {
     cost: cost,
     new_coins: newCoins,
     active_count: active.length + 1,
-    limit: limit
+    limit: limit,
+    pool: pool,                // candidate names (diagnostic)
+    pool_held: pool.filter(n => activeProducts[n]),  // names already held (diagnostic)
+    dup_ratio: dupRatio
   });
 }
 
