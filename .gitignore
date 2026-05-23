@@ -1,6 +1,7 @@
 # Intermediate HTML from md2pdf.py (regenerable)
 *.html
 !index.html
+!bento.html
 
 # Tool / IDE state
 .claude/

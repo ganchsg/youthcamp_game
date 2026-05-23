@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>青年营计分台 · Bento</title>
+<style>
+  :root {
+    --bg: #0a0c12;
+    --panel: #14171f;
+    --panel-2: #1a1e29;
+    --line: #2a2f3d;
+    --text: #f0f2f8;
+    --muted: #8b93a7;
+    --gold: #f5c542;
+    --rose: #ff6b8a;
+    --emerald: #46d1a3;
+    --rust: #ff8a4c;
+    --blue: #6ab1ff;
+    --violet: #a78bfa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: radial-gradient(1400px 800px at 12% -10%, rgba(245,197,66,.08), transparent 60%),
+                radial-gradient(1200px 700px at 110% 110%, rgba(60,93,255,.10), transparent 60%),
+                var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    width: 1920px;
+    min-height: 1200px;
+    padding: 40px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: 178px;
+    gap: 18px;
+    width: 100%;
+  }
+  .card {
+    border-radius: 24px;
+    padding: 28px;
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-tag {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .card-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+  }
+  .card-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+    flex: 1;
+  }
+  .big-num {
+    font-size: 64px;
+    font-weight: 900;
+    line-height: 1;
+    font-feature-settings: "tnum";
+    letter-spacing: -0.04em;
+  }
+
+  /* ===== Hero ===== */
+  .hero {
+    grid-column: span 6;
+    grid-row: span 2;
+    background: linear-gradient(135deg, #1f1530 0%, #14171f 60%);
+    border: 1px solid rgba(245,197,66,.30);
+    justify-content: space-between;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, var(--gold), var(--rose));
+    color: #0b0d12;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: .14em;
+    width: fit-content;
+  }
+  .hero h1 {
+    font-size: 88px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.96;
+    background: linear-gradient(135deg, #ffffff 0%, var(--gold) 50%, var(--rose) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-top: 16px;
+  }
+  .hero h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-top: 10px;
+    letter-spacing: -0.01em;
+  }
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: auto;
+  }
+  .hero-stat {
+    border-top: 2px solid var(--line);
+    padding-top: 12px;
+  }
+  .hero-stat-num {
+    font-size: 40px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--gold);
+    font-feature-settings: "tnum";
+  }
+  .hero-stat-lbl {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* ===== Resources ===== */
+  .resources {
+    grid-column: span 3;
+    grid-row: span 2;
+    background: linear-gradient(135deg, rgba(106,177,255,.10) 0%, rgba(106,177,255,.02) 100%);
+    border-color: rgba(106,177,255,.30);
+  }
+  .res-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .res-item {
+    background: rgba(0,0,0,.30);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .res-emoji { font-size: 36px; line-height: 1; }
+  .res-name { font-size: 16px; font-weight: 700; }
+  .res-price {
+    font-size: 11px;
+    color: var(--gold);
+    font-weight: 600;
+    margin-top: 2px;
+    font-feature-settings: "tnum";
+  }
+
+  /* ===== Cycle ===== */
+  .cycle {
+    grid-column: span 3;
+    grid-row: span 2;
+    background: linear-gradient(135deg, rgba(255,138,76,.10) 0%, rgba(255,138,76,.02) 100%);
+    border-color: rgba(255,138,76,.30);
+  }
+  .cycle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    flex: 1;
+    justify-content: space-around;
+  }
+  .cycle-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,.30);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .cycle-step .ico { font-size: 24px; }
+  .cycle-step .num {
+    background: var(--rust);
+    color: #0b0d12;
+    width: 20px; height: 20px;
+    border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+    margin-left: auto;
+  }
+
+  /* ===== Country cards ===== */
+  .country {
+    grid-column: span 3;
+    grid-row: span 2;
+    padding: 24px;
+    overflow: hidden;
+    position: relative;
+  }
+  .country::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    opacity: 0.10;
+    background: var(--accent, white);
+    pointer-events: none;
+  }
+  .country-flag {
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: .15em;
+    padding: 6px 12px;
+    border-radius: 10px;
+    display: inline-block;
+    color: #0b0d12;
+    background: var(--accent, white);
+    width: fit-content;
+  }
+  .country h3 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin-top: 14px;
+    margin-bottom: 6px;
+  }
+  .country-tag {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .country-stats {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .stat-val {
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    font-feature-settings: "tnum";
+  }
+  .stat-val.small { font-size: 18px; }
+  .country-bonus {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    background: rgba(0,0,0,.30);
+    padding: 10px 14px;
+    border-radius: 10px;
+    border-left: 3px solid var(--accent);
+  }
+
+  .c-my { --accent: var(--gold); background: linear-gradient(180deg, rgba(245,197,66,.08) 0%, var(--panel-2) 100%); border-color: rgba(245,197,66,.30); }
+  .c-kr { --accent: var(--rose); background: linear-gradient(180deg, rgba(255,107,138,.08) 0%, var(--panel-2) 100%); border-color: rgba(255,107,138,.30); }
+  .c-jp { --accent: var(--blue); background: linear-gradient(180deg, rgba(106,177,255,.08) 0%, var(--panel-2) 100%); border-color: rgba(106,177,255,.30); }
+  .c-us { --accent: var(--violet); background: linear-gradient(180deg, rgba(167,139,250,.10) 0%, var(--panel-2) 100%); border-color: rgba(167,139,250,.30); }
+
+  /* ===== Asset formula ===== */
+  .formula {
+    grid-column: span 6;
+    grid-row: span 1;
+    background: linear-gradient(135deg, rgba(245,197,66,.10) 0%, rgba(255,107,138,.04) 100%);
+    border-color: rgba(245,197,66,.35);
+  }
+  .formula-text {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-top: 12px;
+    font-feature-settings: "tnum";
+    line-height: 1.4;
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+  .formula-text .op { color: var(--muted); margin: 0 8px; }
+  .formula-text .coin { color: var(--gold); }
+  .formula-text .prod { color: var(--blue); }
+  .formula-text .love { color: var(--rose); }
+  .formula-text .honor { color: var(--emerald); }
+
+  /* ===== Dice ===== */
+  .dice {
+    grid-column: span 3;
+    grid-row: span 1;
+    background: linear-gradient(135deg, rgba(255,107,138,.10) 0%, rgba(255,107,138,.02) 100%);
+    border-color: rgba(255,107,138,.30);
+  }
+  .dice-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    align-items: center;
+    flex: 1;
+  }
+  .dice-block {
+    flex: 1;
+    background: rgba(0,0,0,.30);
+    border-radius: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+  }
+  .dice-block .icon { font-size: 24px; }
+  .dice-block .role {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin: 4px 0;
+  }
+  .dice-block .rule {
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .dice-block .rule .fail { color: var(--rose); }
+
+  /* ===== Levelup ===== */
+  .levelup {
+    grid-column: span 3;
+    grid-row: span 1;
+    background: linear-gradient(135deg, rgba(70,209,163,.10) 0%, rgba(70,209,163,.02) 100%);
+    border-color: rgba(70,209,163,.30);
+  }
+  .level-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    flex: 1;
+    justify-content: center;
+  }
+  .level-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .level-row .lvl-tag {
+    background: var(--emerald);
+    color: #0b0d12;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .04em;
+    min-width: 50px;
+    text-align: center;
+  }
+  .level-row .reqs {
+    color: var(--muted);
+    font-size: 12px;
+    font-feature-settings: "tnum";
+  }
+
+  /* ===== Strategy ===== */
+  .strategy {
+    grid-column: span 12;
+    grid-row: span 1;
+    background: linear-gradient(135deg, rgba(167,139,250,.08) 0%, var(--panel-2) 100%);
+    border-color: rgba(167,139,250,.30);
+  }
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 12px;
+    flex: 1;
+  }
+  .strat-cell {
+    border-left: 3px solid var(--accent, var(--violet));
+    padding: 6px 14px;
+  }
+  .strat-cell .flag {
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    color: var(--accent);
+  }
+  .strat-cell .text {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+  .strat-cell.s-my { --accent: var(--gold); }
+  .strat-cell.s-kr { --accent: var(--rose); }
+  .strat-cell.s-jp { --accent: var(--blue); }
+  .strat-cell.s-us { --accent: var(--violet); }
+
+  /* ===== Footer ===== */
+  .footer {
+    margin-top: 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="grid">
+
+  <!-- Hero -->
+  <div class="card hero">
+    <div>
+      <span class="hero-badge">🏆 YOUTH CAMP 2026</span>
+      <h1>青年营计分台</h1>
+      <h2>国家模拟 · 资源 · 制造 · 贸易 · 升级</h2>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-num">4</div>
+        <div class="hero-stat-lbl">国家</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">6</div>
+        <div class="hero-stat-lbl">基础资源</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">5</div>
+        <div class="hero-stat-lbl">行动循环</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">4</div>
+        <div class="hero-stat-lbl">升级阶段</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resources -->
+  <div class="card resources">
+    <div class="card-tag">🛢 基础资源</div>
+    <div class="card-title">6 种, 任何国家可买</div>
+    <div class="res-grid">
+      <div class="res-item"><span class="res-emoji">💧</span><span class="res-name">水</span><span class="res-price">500 / 100</span></div>
+      <div class="res-item"><span class="res-emoji">🛢</span><span class="res-name">石油</span><span class="res-price">500 / 100</span></div>
+      <div class="res-item"><span class="res-emoji">🪵</span><span class="res-name">木材</span><span class="res-price">500 / 100</span></div>
+      <div class="res-item"><span class="res-emoji">⚙️</span><span class="res-name">金属</span><span class="res-price">500 / 100</span></div>
+      <div class="res-item"><span class="res-emoji">⚡</span><span class="res-name">电力</span><span class="res-price">500 / 100</span></div>
+      <div class="res-item"><span class="res-emoji">💎</span><span class="res-name">晶片</span><span class="res-price">500 / 100</span></div>
+    </div>
+  </div>
+
+  <!-- Cycle -->
+  <div class="card cycle">
+    <div class="card-tag">🔄 5 步循环</div>
+    <div class="card-title">一轮完整玩法</div>
+    <div class="cycle-list">
+      <div class="cycle-step"><span class="ico">📋</span> 申请采购单 <span class="num">1</span></div>
+      <div class="cycle-step"><span class="ico">🛒</span> 银行采购 <span class="num">2</span></div>
+      <div class="cycle-step"><span class="ico">🏭</span> 生产产品 <span class="num">3</span></div>
+      <div class="cycle-step"><span class="ico">💸</span> 运输销售 <span class="num">4</span></div>
+      <div class="cycle-step"><span class="ico">🎁</span> 研发投资 <span class="num">5</span></div>
+    </div>
+  </div>
+
+  <!-- MY -->
+  <div class="card country c-my">
+    <span class="country-flag">MY</span>
+    <h3>🇲🇾 马来西亚</h3>
+    <div class="country-tag">资源国</div>
+    <div class="country-bonus">起手每种资源 ×1600 单位 — 不用买就能立刻生产</div>
+    <div class="country-stats">
+      <div>
+        <div class="stat-label">起始金币</div>
+        <div class="stat-val">10K</div>
+      </div>
+      <div>
+        <div class="stat-label">起始资源</div>
+        <div class="stat-val">1,600</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KR -->
+  <div class="card country c-kr">
+    <span class="country-flag">KR</span>
+    <h3>🇰🇷 韩国</h3>
+    <div class="country-tag">科技国</div>
+    <div class="country-bonus">L1 产品卖给银行 +10% 收入 — 早期靠 L1 回血最快</div>
+    <div class="country-stats">
+      <div>
+        <div class="stat-label">起始金币</div>
+        <div class="stat-val">10K</div>
+      </div>
+      <div>
+        <div class="stat-label">L1 加成</div>
+        <div class="stat-val">+10%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JP -->
+  <div class="card country c-jp">
+    <span class="country-flag">JP</span>
+    <h3>🇯🇵 日本</h3>
+    <div class="country-tag">医疗国</div>
+    <div class="country-bonus">买原料 -10% (单价 450) — 长期累积优势,主打医疗</div>
+    <div class="country-stats">
+      <div>
+        <div class="stat-label">起始金币</div>
+        <div class="stat-val">10K</div>
+      </div>
+      <div>
+        <div class="stat-label">资源单价</div>
+        <div class="stat-val">450</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- US -->
+  <div class="card country c-us">
+    <span class="country-flag">US</span>
+    <h3>🇺🇸 美国</h3>
+    <div class="country-tag">金融国</div>
+    <div class="country-bonus">起始金币 ×2 (20K) — 直接暴买跳级走高端</div>
+    <div class="country-stats">
+      <div>
+        <div class="stat-label">起始金币</div>
+        <div class="stat-val">20K</div>
+      </div>
+      <div>
+        <div class="stat-label">起始资源</div>
+        <div class="stat-val">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Formula -->
+  <div class="card formula">
+    <div class="card-tag">💎 总资产公式</div>
+    <div class="formula-text">
+      <span>(</span>
+      <span class="coin">金币</span>
+      <span class="op">+</span>
+      <span class="prod">产品估值</span>
+      <span>)</span>
+      <span class="op">×</span>
+      <span class="love">爱心倍数</span>
+      <span class="op">+</span>
+      <span class="honor">荣誉值 × 1,000</span>
+    </div>
+  </div>
+
+  <!-- Dice -->
+  <div class="card dice">
+    <div class="card-tag">🎲 骰子规则</div>
+    <div class="dice-row">
+      <div class="dice-block">
+        <div class="icon">🏭</div>
+        <div class="role">生产</div>
+        <div class="rule"><span class="fail">1 = 失败</span></div>
+      </div>
+      <div class="dice-block">
+        <div class="icon">🚛</div>
+        <div class="role">运输</div>
+        <div class="rule"><span class="fail">4 = 失败</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Up -->
+  <div class="card levelup">
+    <div class="card-tag">📈 升级门槛</div>
+    <div class="level-list">
+      <div class="level-row"><span class="lvl-tag">Lv.2</span><span class="reqs">L1×10 + 20K + 5 运输</span></div>
+      <div class="level-row"><span class="lvl-tag">Lv.3</span><span class="reqs">L2×5 + 50K</span></div>
+      <div class="level-row"><span class="lvl-tag">Lv.4</span><span class="reqs">L3×3 + 80K</span></div>
+      <div class="level-row"><span class="lvl-tag">终极</span><span class="reqs">2×L4 + 80K + ❤1 + 🏆1</span></div>
+    </div>
+  </div>
+
+  <!-- Strategy -->
+  <div class="card strategy">
+    <div class="card-tag">🎯 4 国速成策略</div>
+    <div class="strategy-grid">
+      <div class="strat-cell s-my">
+        <div class="flag">🇲🇾 MY · 资源</div>
+        <div class="text">起手 9,600 单位资源,早期做 L1 卖银行,中期资源卖给别国赚溢价</div>
+      </div>
+      <div class="strat-cell s-kr">
+        <div class="flag">🇰🇷 KR · 科技</div>
+        <div class="text">L1 +10% 卖银行回血最快,缺资源跟 MY 买,主打 L2/L3 电子/AI</div>
+      </div>
+      <div class="strat-cell s-jp">
+        <div class="flag">🇯🇵 JP · 医疗</div>
+        <div class="text">买资源 -10% 长期省,医疗用品→医疗设备→L3 诊断→L4 全球医疗网络</div>
+      </div>
+      <div class="strat-cell s-us">
+        <div class="flag">🇺🇸 US · 金融</div>
+        <div class="text">起手 20K 暴买半成品跳级,主打金融/国防/太空,L3/L4 高溢价</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">YOUTHCAMP-GAME · GAME_GUIDE.md · github.com/ganchsg/youthcamp_game</div>
+</body>
+</html>
