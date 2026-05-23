@@ -1,0 +1,3031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>青年营计分台 · Youth Camp Scoreboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #14171f;
+    --panel-2: #1a1e29;
+    --line: #252a37;
+    --text: #e8eaf0;
+    --muted: #8b93a7;
+    --gold: #f5c542;
+    --rose: #ff6b8a;
+    --emerald: #46d1a3;
+    --rust: #ff8a4c;
+    --blue: #6ab1ff;
+  }
+  html,body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  body { background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(245,197,66,.06), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(60,93,255,.08), transparent 60%),
+    var(--bg);
+    min-height: 100vh;
+  }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -0.02em; }
+  .display { font-family: "SF Pro Display", "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+  .panel { background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%); border: 1px solid var(--line); border-radius: 20px; }
+  .chip { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 999px; }
+  .accent-bar { width: 6px; }
+  .level-pill { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+  .stat-label { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+  .res-pill { background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .tab { padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--muted); border: 1px solid transparent; }
+  .prod-row { border-bottom: 1px dashed rgba(255,255,255,.05); }
+  .prod-row:last-child { border-bottom: none; }
+  .glow-gold { box-shadow: 0 0 0 1px rgba(245,197,66,.15), 0 8px 32px rgba(245,197,66,.05); }
+  .heart-pulse { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: .85; } }
+  @keyframes flash { 0% { background-color: rgba(245,197,66,.25); } 100% { background-color: transparent; } }
+  .flash { animation: flash 1s ease-out; }
+  .sticky-top { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(11,13,18,.72); }
+  .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .dot-live { background: var(--emerald); box-shadow: 0 0 8px rgba(70,209,163,.6); }
+  .dot-err { background: var(--rust); box-shadow: 0 0 8px rgba(255,138,76,.6); }
+  .dot-loading { background: var(--gold); box-shadow: 0 0 8px rgba(245,197,66,.6); animation: pulse 1s ease-in-out infinite; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .strip-my { background: linear-gradient(180deg, #ffcc00 0%, #cc0001 100%); }
+  .strip-kr { background: linear-gradient(180deg, #cd2e3a 0%, #0047a0 100%); }
+  .strip-jp { background: linear-gradient(180deg, #ffffff 0%, #bc002d 100%); }
+  .strip-us { background: linear-gradient(180deg, #3c5dff 0%, #cd2e3a 100%); }
+
+  /* country mono badge — louder identity */
+  .country-badge { display: inline-flex; align-items: center; justify-content: center; padding: 2px 14px; border-radius: 10px; font-weight: 900; font-size: 28px; letter-spacing: 0.04em; line-height: 1; color: #0b0d12; }
+  .country-badge.my { background: #ffcc00; }
+  .country-badge.kr { background: #ffffff; }
+  .country-badge.jp { background: #ffffff; }
+  .country-badge.us { background: linear-gradient(135deg, #3c5dff, #cd2e3a); color: #fff; }
+  .country-badge.kr::before { content: ''; }
+  .country-badge.jp { border: 2px solid #bc002d; }
+
+  /* compact, dense resource line */
+  .res-line { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; background: rgba(0,0,0,.25); border-radius: 10px; padding: 6px 8px; }
+  .res-mini { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+  .res-mini-icon { font-size: 12px; opacity: 0.6; }
+  .res-mini-val { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .res-mini-val.zero { color: var(--rust); opacity: 0.85; }
+  .res-mini-val.zero::after { content: ''; display: inline-block; }
+
+  /* product list capped height */
+  /* product list expands to fit all items — no max-height, no scrollbar */
+  .product-list-capped { padding-right: 2px; }
+
+  /* mentor selector — chosen state */
+  .mentor-sel.set { background: linear-gradient(135deg, rgba(106,177,255,.20), rgba(106,177,255,.08)); border-color: rgba(106,177,255,.55); color: var(--blue); font-weight: 600; animation: none; }
+  .mentor-sel.set:focus { border-color: var(--gold); }
+
+  /* upgrade CTA when conditions ready */
+  .upgrade-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px 14px; background: linear-gradient(135deg, var(--emerald), #2ea87a); color: #0b0d12; border: none; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 14px; letter-spacing: 0.02em; box-shadow: 0 4px 18px rgba(70,209,163,.30); transition: all .15s ease; margin-bottom: 12px; animation: ctaBreath 2.4s ease-in-out infinite; -webkit-tap-highlight-color: transparent; }
+  .upgrade-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(70,209,163,.40); animation: none; }
+  .upgrade-cta:active { transform: scale(0.98); }
+  @keyframes ctaBreath { 0%,100% { box-shadow: 0 4px 18px rgba(70,209,163,.25); } 50% { box-shadow: 0 6px 28px rgba(70,209,163,.55); } }
+
+  /* number-changed flash */
+  .num-flash-up { animation: numFlashUp 1.1s ease-out; }
+  .num-flash-down { animation: numFlashDown 1.1s ease-out; }
+  @keyframes numFlashUp { 0% { background: rgba(70,209,163,.35); box-shadow: 0 0 0 6px rgba(70,209,163,.18); } 100% { background: transparent; box-shadow: 0 0 0 0 transparent; } }
+  @keyframes numFlashDown { 0% { background: rgba(255,107,138,.35); box-shadow: 0 0 0 6px rgba(255,107,138,.18); } 100% { background: transparent; box-shadow: 0 0 0 0 transparent; } }
+
+  /* produce result overlay (in modal) */
+  .produce-result-overlay { position: absolute; inset: 0; background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border-radius: 20px; animation: fadeIn .2s ease; z-index: 5; }
+  .produce-result-icon { font-size: 88px; line-height: 1; animation: bounceIn 0.6s ease-out; }
+  .produce-result-title { font-size: 32px; font-weight: 900; letter-spacing: -0.02em; }
+  .produce-result-title.ok { color: var(--emerald); }
+  .produce-result-title.fail { color: var(--rose); }
+  .produce-result-sub { font-size: 14px; color: var(--muted); }
+
+  /* global logs button in header */
+  .btn-global-logs { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border-radius: 8px; font-size: 14px; cursor: pointer; user-select: none; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); transition: all .15s ease; }
+  .btn-global-logs:hover { background: rgba(245,197,66,.10); border-color: rgba(245,197,66,.35); color: var(--gold); }
+
+  /* country chip inline (for global logs view) */
+  .log-country-chip { display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; letter-spacing: .04em; margin-left: 6px; }
+  .log-country-chip.my { background: rgba(255,204,0,.18); color: #ffcc00; }
+  .log-country-chip.kr { background: rgba(205,46,58,.20); color: #ff7080; }
+  .log-country-chip.jp { background: rgba(188,0,45,.20); color: #ff7080; }
+  .log-country-chip.us { background: rgba(60,93,255,.20); color: var(--blue); }
+
+  /* draw result cooldown */
+  .next-draw-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--line); font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .next-draw-pill .num { color: var(--text); font-weight: 600; }
+
+  /* big-tap numbers — the number IS the button */
+  .stat-tappable { cursor: pointer; transition: all .12s ease; border-radius: 8px; padding: 2px 6px; margin: -2px -6px; }
+  .stat-tappable:hover { background: rgba(245,197,66,.08); }
+  .stat-tappable:active { transform: scale(0.97); }
+  .stat-tappable::after { content: '✎'; font-size: 11px; color: var(--muted); margin-left: 6px; opacity: 0.4; transition: opacity .15s; vertical-align: middle; }
+  .stat-tappable:hover::after { opacity: 0.85; }
+
+  /* upgrade summary — one line at a glance */
+  .upgrade-bar { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; transition: all .15s; }
+  .upgrade-bar:hover { background: rgba(245,197,66,.04); border-color: rgba(245,197,66,.25); }
+  .upgrade-bar.ready { border-color: rgba(70,209,163,.45); background: linear-gradient(135deg, rgba(70,209,163,.10), rgba(70,209,163,.02)); }
+  .upgrade-bar.expanded { background: rgba(255,255,255,.02); cursor: default; }
+  .upgrade-track { flex: 1; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .upgrade-fill { height: 100%; background: var(--gold); transition: width .3s ease; }
+  .upgrade-bar.ready .upgrade-fill { background: var(--emerald); }
+  .upgrade-detail { padding: 8px 4px 0; }
+
+  .grid-cards { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 900px) {
+    .grid-cards { grid-template-columns: 1fr 1fr; gap: 16px; }
+  }
+  @media (min-width: 1200px) {
+    .container { max-width: 1400px !important; }
+    .grid-cards { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .panel > .flex > .flex-1 { padding: 16px !important; }
+    .panel .grid.grid-cols-2 > div { padding: 10px !important; border-radius: 14px !important; }
+    .panel .display.num.text-3xl { font-size: 22px !important; }
+    .panel .display.text-xl { font-size: 15px !important; }
+    .panel .res-pill { padding: 5px 7px !important; border-radius: 9px !important; }
+    .panel .res-pill .num.text-sm { font-size: 11px !important; }
+    .panel .res-pill .text-xs { font-size: 10px !important; }
+    .panel .grid.grid-cols-3 { gap: 5px !important; }
+    .panel .prod-row { padding-top: 6px !important; padding-bottom: 6px !important; }
+    .panel .prod-row .text-sm { font-size: 12px !important; }
+    .panel .tab { padding: 4px 8px !important; font-size: 11px !important; }
+    .panel .mb-5 { margin-bottom: 12px !important; }
+    .panel .stat-label { font-size: 10px !important; letter-spacing: .1em; }
+    .panel section .text-3xl { font-size: 22px !important; }
+    .panel .level-pill { font-size: 9px !important; padding: 3px 7px !important; }
+  }
+
+  .banner { background: linear-gradient(135deg, rgba(255,138,76,.10), rgba(245,197,66,.06)); border: 1px solid rgba(255,138,76,.25); border-radius: 16px; }
+  .banner code { background: rgba(0,0,0,.35); padding: 2px 6px; border-radius: 6px; font-size: 12px; color: var(--gold); }
+
+  /* mentor adjust buttons */
+  .btn-adj { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font-size: 11px; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; user-select: none; transition: transform .05s, background .15s, border-color .15s; -webkit-tap-highlight-color: transparent; }
+  .btn-adj:hover { background: rgba(255,255,255,.07); }
+  .btn-adj:active { transform: scale(0.94); }
+  .btn-adj.minus:hover { background: rgba(255,107,138,.14); border-color: rgba(255,107,138,.35); color: var(--rose); }
+  .btn-adj.plus:hover  { background: rgba(70,209,163,.14); border-color: rgba(70,209,163,.35); color: var(--emerald); }
+  .btn-adj[disabled] { opacity: .4; pointer-events: none; }
+  .btn-adj.icon { padding: 4px 0; min-width: 30px; }
+  .adj-input { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font-size: 12px; color: var(--text); text-align: center; width: 100%; min-width: 0; outline: none; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+  .adj-input::-webkit-outer-spin-button,
+  .adj-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .adj-input:focus { border-color: var(--gold); background: rgba(245,197,66,.06); }
+  .btn-adj-single { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all .15s ease; -webkit-tap-highlight-color: transparent; letter-spacing: .05em; }
+  .btn-adj-single:hover { background: rgba(245,197,66,.10); border-color: rgba(245,197,66,.35); color: var(--gold); }
+  .btn-adj-single:active { transform: scale(0.97); }
+
+  .delta-input { width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 22px; font-weight: 700; color: var(--text); text-align: center; outline: none; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+  .delta-input::-webkit-outer-spin-button, .delta-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .delta-input:focus { border-color: var(--gold); background: rgba(245,197,66,.05); }
+  .delta-input.positive { color: var(--emerald); }
+  .delta-input.negative { color: var(--rose); }
+  .quick-delta { display: inline-block; padding: 6px 12px; margin: 3px 4px 3px 0; font-size: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; font-weight: 600; transition: all .15s ease; }
+  .quick-delta.pos { color: var(--emerald); }
+  .quick-delta.neg { color: var(--rose); }
+  .quick-delta:hover { background: rgba(255,255,255,.08); border-color: var(--muted); transform: translateY(-1px); }
+
+  /* icon action buttons on card header (still used by 🎫 chip layout) */
+  .btn-icon-act { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; border-radius: 8px; font-size: 14px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text); transition: all .15s ease; line-height: 1; padding: 0; }
+  .btn-icon-act:hover { transform: translateY(-1px); }
+  .btn-icon-act:active { transform: scale(0.94); }
+
+  /* Big labeled action grid — below coin card. Mentor-only. 2 rows × 3 cols. */
+  .act-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .btn-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 9px 2px; border-radius: 12px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text); transition: all .15s ease; line-height: 1; min-height: 56px; }
+  .btn-act .ico { font-size: 20px; line-height: 1; }
+  .btn-act .lbl { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+  .btn-act:hover { transform: translateY(-1px); }
+  .btn-act:active { transform: scale(0.96); }
+  .btn-act.buy     { background: linear-gradient(135deg, rgba(70,209,163,.18),  rgba(70,209,163,.05));  border-color: rgba(70,209,163,.40); color: var(--emerald); }
+  .btn-act.buy:hover     { background: rgba(70,209,163,.25); border-color: rgba(70,209,163,.65); }
+  .btn-act.sell    { background: linear-gradient(135deg, rgba(255,107,138,.18), rgba(255,107,138,.05)); border-color: rgba(255,107,138,.40); color: var(--rose); }
+  .btn-act.sell:hover    { background: rgba(255,107,138,.25); border-color: rgba(255,107,138,.65); }
+  .btn-act.produce { background: linear-gradient(135deg, rgba(106,177,255,.18), rgba(106,177,255,.05)); border-color: rgba(106,177,255,.40); color: var(--blue); }
+  .btn-act.produce:hover { background: rgba(106,177,255,.25); border-color: rgba(106,177,255,.65); }
+  .btn-act.draw    { background: linear-gradient(135deg, rgba(245,197,66,.22),  rgba(255,107,138,.08));  border-color: rgba(245,197,66,.45); color: var(--gold); }
+  .btn-act.draw:hover    { background: linear-gradient(135deg, rgba(245,197,66,.34), rgba(255,107,138,.16)); border-color: rgba(245,197,66,.65); }
+  .btn-act.logs    { color: var(--muted); }
+  .btn-act.logs:hover    { background: rgba(245,197,66,.10); color: var(--gold); border-color: rgba(245,197,66,.35); }
+  .btn-act.purchase { background: linear-gradient(135deg, rgba(255,138,76,.20), rgba(255,138,76,.05)); border-color: rgba(255,138,76,.45); color: var(--rust); }
+  .btn-act.purchase:hover { background: rgba(255,138,76,.28); border-color: rgba(255,138,76,.65); }
+
+  /* Active purchase order chips */
+  .po-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .po-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px 4px 6px; border-radius: 8px; background: linear-gradient(135deg, rgba(255,138,76,.16), rgba(255,138,76,.05)); border: 1px solid rgba(255,138,76,.40); color: var(--rust); font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.4; }
+  .po-chip .po-lv { font-size: 9px; padding: 1px 4px; background: rgba(255,138,76,.20); border-radius: 4px; letter-spacing: .04em; }
+  .po-empty-hint { font-size: 10px; color: var(--muted); padding: 5px 10px; border: 1px dashed rgba(255,255,255,.10); border-radius: 8px; letter-spacing: .04em; }
+
+  /* Purchase center banner inside buy modal */
+  .pc-banner { background: linear-gradient(135deg, rgba(255,138,76,.12), rgba(255,138,76,.03)); border: 1px solid rgba(255,138,76,.35); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .pc-banner-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--rust); margin-bottom: 8px; letter-spacing: .02em; }
+  .pc-banner-sub { font-size: 11px; color: var(--muted); margin-bottom: 10px; line-height: 1.4; }
+  .pc-lv-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .pc-lv-btn { padding: 9px 4px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 9px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; text-align: center; color: var(--text); user-select: none; }
+  .pc-lv-btn:hover:not([disabled]) { background: rgba(255,138,76,.16); border-color: rgba(255,138,76,.55); color: var(--rust); transform: translateY(-1px); }
+  .pc-lv-btn:active { transform: scale(0.96); }
+  .pc-lv-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+  /* Transport dice section inside sell modal */
+  .ship-dice-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .ship-dice-btn { padding: 9px 0; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 9px; font-size: 16px; font-weight: 800; cursor: pointer; transition: all .15s; text-align: center; color: var(--text); user-select: none; font-variant-numeric: tabular-nums; position: relative; }
+  .ship-dice-btn.pass:hover  { background: rgba(70,209,163,.18); border-color: rgba(70,209,163,.55); color: var(--emerald); }
+  .ship-dice-btn.pass.active { background: rgba(70,209,163,.30); border-color: var(--emerald); color: var(--emerald); }
+  /* Fail dice (4) — always tinted red so mentor can spot it */
+  .ship-dice-btn.fail { background: rgba(255,107,138,.10); border-color: rgba(255,107,138,.45); color: var(--rose); }
+  .ship-dice-btn.fail::after { content: '✗'; position: absolute; top: 2px; right: 4px; font-size: 9px; color: var(--rose); opacity: 0.8; font-weight: 700; }
+  .ship-dice-btn.fail:hover  { background: rgba(255,107,138,.22); border-color: var(--rose); color: var(--rose); }
+  .ship-dice-btn.fail.active { background: var(--rose); border-color: var(--rose); color: #0b0d12; }
+  .ship-dice-btn.fail.active::after { color: #0b0d12; opacity: 0.9; }
+  .ship-dice-btn[disabled] { opacity: 0.3; cursor: not-allowed; }
+
+  /* sell-specific styles */
+  .dest-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .dest-tab { padding: 9px 8px; text-align: center; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; transition: all .15s; background: rgba(255,255,255,.03); font-size: 12px; color: var(--text); font-weight: 600; user-select: none; }
+  .dest-tab:hover { background: rgba(255,107,138,.10); border-color: rgba(255,107,138,.3); }
+  .dest-tab.active { background: linear-gradient(135deg, rgba(255,107,138,.25), rgba(255,107,138,.10)); border-color: var(--rose); color: var(--rose); }
+  .dest-tab .icon { font-size: 18px; display: block; margin-bottom: 2px; }
+  .dest-tab .label { font-size: 11px; }
+  .price-input { width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 700; color: var(--text); text-align: center; outline: none; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+  .price-input::-webkit-outer-spin-button, .price-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .price-input:focus { border-color: var(--rose); background: rgba(255,107,138,.06); }
+  .price-input[readonly] { background: rgba(245,197,66,.06); border-color: rgba(245,197,66,.3); color: var(--gold); cursor: not-allowed; }
+
+  /* buy modal */
+  .buy-item { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; transition: all .15s ease; }
+  .buy-item:hover:not(.disabled) { background: rgba(70,209,163,.08); border-color: rgba(70,209,163,.35); transform: translateX(2px); }
+  .buy-item.disabled { opacity: 0.4; cursor: not-allowed; }
+  .buy-item-icon { font-size: 22px; line-height: 1; width: 28px; text-align: center; flex-shrink: 0; }
+  .buy-item-name { flex: 1; font-size: 14px; font-weight: 600; min-width: 0; }
+  .buy-item-price { font-size: 13px; color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .buy-item-price .unit { color: var(--muted); font-size: 11px; font-weight: 400; margin-left: 3px; }
+
+  /* qty stepper */
+  .qty-stepper { display: flex; align-items: center; gap: 0; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .qty-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; cursor: pointer; color: var(--text); background: transparent; border: none; transition: background .15s; user-select: none; }
+  .qty-btn:hover { background: rgba(255,255,255,.08); }
+  .qty-btn:active { transform: scale(0.95); }
+  .qty-btn[disabled] { opacity: 0.3; pointer-events: none; }
+  .qty-val { padding: 0 16px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 60px; text-align: center; }
+
+  /* buy summary */
+  .buy-summary { background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(245,197,66,.02)); border: 1px solid rgba(245,197,66,.30); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .buy-summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .buy-summary-row + .buy-summary-row { margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,.08); }
+  .buy-summary-row .num { font-weight: 700; }
+  .buy-summary-total { font-size: 18px; color: var(--gold); }
+  .buy-summary-after { color: var(--emerald); }
+  .buy-summary-after.bad { color: var(--rose); }
+
+  .quick-qty { display: inline-block; padding: 3px 10px; margin: 2px 4px 2px 0; font-size: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 6px; color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; transition: all .15s ease; }
+  .quick-qty:hover { background: rgba(70,209,163,.10); color: var(--emerald); border-color: rgba(70,209,163,.35); }
+
+  /* asset link */
+  .asset-link { cursor: pointer; padding: 3px 7px; border-radius: 6px; transition: background .15s ease; user-select: none; }
+  .asset-link:hover { background: rgba(245,197,66,.10); }
+  .asset-link:active { transform: scale(0.97); }
+  .asset-link-icon { color: var(--muted); margin-left: 2px; opacity: 0.6; }
+
+  /* asset breakdown modal */
+  .asset-table { width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .asset-table .group-header { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .asset-table .row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; padding: 5px 0; align-items: baseline; font-variant-numeric: tabular-nums; }
+  .asset-table .row .name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .asset-table .row .qty { color: var(--muted); font-size: 12px; }
+  .asset-table .row .x { color: var(--muted); font-size: 11px; }
+  .asset-table .row .sub { color: var(--gold); font-weight: 600; min-width: 70px; text-align: right; }
+  .asset-total { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 14px; margin-top: 14px; background: linear-gradient(135deg, rgba(245,197,66,.12), rgba(245,197,66,.04)); border: 1px solid rgba(245,197,66,.35); border-radius: 12px; }
+  .asset-total .label { font-size: 14px; color: var(--text); font-weight: 600; }
+  .asset-total .val { font-size: 26px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .asset-section-total { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; color: var(--muted); border-top: 1px dashed rgba(255,255,255,.08); margin-top: 6px; }
+  .asset-section-total .v { color: var(--text); font-weight: 600; }
+  .nofail-chip { background: linear-gradient(135deg, rgba(70,209,163,.18), rgba(70,209,163,.06)); border: 1px solid rgba(70,209,163,.4); color: var(--emerald); padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+
+  /* draw modal */
+  .draw-stage { text-align: center; padding: 32px 16px; border-radius: 16px; background: linear-gradient(135deg, rgba(245,197,66,.08), rgba(255,107,138,.04)); border: 1px solid rgba(245,197,66,.25); margin-bottom: 16px; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .draw-emoji { font-size: 56px; line-height: 1; animation: spin 0.6s ease-in-out infinite; display: inline-block; }
+  .draw-emoji.idle { animation: none; transform: rotate(0); }
+  .draw-emoji.reveal { animation: bounceIn 0.6s ease-out; }
+  @keyframes spin { 0% { transform: rotate(-20deg) scale(0.9); } 50% { transform: rotate(20deg) scale(1.1); } 100% { transform: rotate(-20deg) scale(0.9); } }
+  @keyframes bounceIn { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  .draw-label { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; min-height: 30px; }
+  .draw-label.spinning { color: var(--muted); opacity: 0.7; }
+  .draw-label.win { color: var(--gold); font-size: 26px; }
+
+  /* nofail toggle in produce confirm */
+  .nofail-toggle { background: linear-gradient(135deg, rgba(70,209,163,.10), rgba(70,209,163,.03)); border: 1px solid rgba(70,209,163,.35); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all .15s ease; user-select: none; }
+  .nofail-toggle:hover { background: linear-gradient(135deg, rgba(70,209,163,.18), rgba(70,209,163,.08)); }
+  .nofail-toggle.on { background: linear-gradient(135deg, rgba(70,209,163,.25), rgba(70,209,163,.10)); border-color: var(--emerald); }
+  .nofail-toggle .check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; color: transparent; font-size: 14px; font-weight: 700; flex-shrink: 0; transition: all .15s ease; }
+  .nofail-toggle.on .check { background: var(--emerald); border-color: var(--emerald); color: #0b0d12; }
+
+  /* offers grid (5-of-1 lottery) */
+  .offers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .offer-card { background: linear-gradient(135deg, rgba(245,197,66,.06), rgba(255,107,138,.02)); border: 1px solid var(--line); border-radius: 14px; padding: 14px 8px; text-align: center; cursor: pointer; transition: all .2s ease; user-select: none; position: relative; overflow: hidden; }
+  .offer-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(245,197,66,.20), rgba(255,107,138,.08)); opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+  .offer-card:hover:not(.disabled) { border-color: rgba(245,197,66,.55); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(245,197,66,.12); }
+  .offer-card:hover:not(.disabled)::before { opacity: 1; }
+  .offer-card:active:not(.disabled) { transform: scale(0.97); }
+  .offer-card.picked { border-color: var(--emerald); background: linear-gradient(135deg, rgba(70,209,163,.18), rgba(70,209,163,.06)); animation: bounceIn 0.5s ease-out; }
+  .offer-card.disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.6); }
+  .offer-icon { font-size: 34px; line-height: 1; position: relative; z-index: 1; }
+  .offer-label { font-size: 13px; font-weight: 700; margin-top: 6px; letter-spacing: -0.01em; position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
+  .offer-card.t-coins .offer-label  { color: var(--gold); }
+  .offer-card.t-res .offer-label    { color: var(--blue); }
+  .offer-card.t-nofail .offer-label { color: var(--emerald); }
+
+  /* log viewer */
+  .log-list { overflow-y: auto; max-height: 60vh; margin: 0 -6px; padding: 0 6px; }
+  .log-list::-webkit-scrollbar { width: 6px; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+  .log-row { background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 6px; }
+  .log-row.adjust { border-left: 3px solid var(--gold); }
+  .log-row.produce_ok { border-left: 3px solid var(--emerald); }
+  .log-row.produce_fail { border-left: 3px solid var(--rose); }
+  .log-meta { font-size: 10px; color: var(--muted); letter-spacing: .04em; }
+  .log-mentor { display: inline-block; background: rgba(106,177,255,.12); color: var(--blue); padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .log-detail { font-size: 13px; color: var(--text); margin-top: 4px; word-break: break-word; }
+  .log-reason { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
+  .log-event-tag { font-size: 10px; padding: 1px 6px; border-radius: 5px; font-weight: 600; letter-spacing: .04em; margin-left: 6px; }
+  .log-event-tag.adjust { background: rgba(245,197,66,.15); color: var(--gold); }
+  .log-event-tag.produce_ok { background: rgba(70,209,163,.15); color: var(--emerald); }
+  .log-event-tag.produce_fail { background: rgba(255,107,138,.15); color: var(--rose); }
+  .log-event-tag.buy { background: rgba(70,209,163,.10); color: var(--emerald); }
+  .log-event-tag.sell { background: rgba(255,107,138,.15); color: var(--rose); }
+  .log-event-tag.sell_fail { background: rgba(255,107,138,.22); color: var(--rose); }
+  .log-event-tag.purchase_apply { background: rgba(255,138,76,.18); color: var(--rust); }
+  .log-event-tag.rd_ok { background: rgba(245,197,66,.18); color: var(--gold); }
+  .log-event-tag.rd_fail { background: rgba(255,107,138,.20); color: var(--rose); }
+  .log-event-tag.draw { background: rgba(245,197,66,.15); color: var(--gold); }
+  .log-row.purchase_apply { border-left: 3px solid var(--rust); }
+  .log-row.buy { border-left: 3px solid var(--emerald); }
+  .log-row.sell { border-left: 3px solid var(--rose); }
+  .log-row.sell_fail { border-left: 3px solid var(--rose); }
+  .log-row.rd_ok { border-left: 3px solid var(--gold); }
+  .log-row.rd_fail { border-left: 3px solid var(--rose); }
+  .ba-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 10px; background: rgba(0,0,0,.25); border-radius: 8px; font-size: 13px; flex-wrap: wrap; }
+  .ba-field { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .ba-from { color: var(--muted); }
+  .ba-arrow { color: var(--muted); }
+  .ba-to { color: var(--text); font-weight: 600; }
+  .ba-delta { margin-left: auto; padding: 1px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ba-delta.pos { background: rgba(70,209,163,.15); color: var(--emerald); }
+  .ba-delta.neg { background: rgba(255,107,138,.15); color: var(--rose); }
+
+  /* toast */
+  .toast-wrap { position: fixed; left: 0; right: 0; bottom: 24px; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; z-index: 300; }
+  .toast { background: rgba(20,23,31,.96); border: 1px solid var(--line); color: var(--text); padding: 9px 16px; border-radius: 10px; font-size: 13px; backdrop-filter: blur(10px); box-shadow: 0 8px 30px rgba(0,0,0,.4); transition: opacity .25s ease, transform .25s ease; max-width: 88%; text-align: center; }
+  .toast.ok { border-color: rgba(70,209,163,.35); }
+  .toast.err { border-color: rgba(255,138,76,.5); color: var(--rust); }
+  .toast.big { padding: 16px 22px; font-size: 16px; font-weight: 600; }
+  .toast.fade { opacity: 0; transform: translateY(8px); }
+
+  /* modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; animation: fadeIn .15s ease; overflow-y: auto; }
+  .modal-overlay.hidden { display: none; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 22px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: popIn .2s ease; max-height: calc(100vh - 40px); display: flex; flex-direction: column; position: relative; }
+  .modal-panel.wide { max-width: 600px; }
+  @keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+  .reason-input { width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); resize: vertical; font-family: inherit; outline: none; min-height: 56px; }
+  .reason-input:focus { border-color: var(--gold); background: rgba(245,197,66,.04); }
+  .reason-input::placeholder { color: var(--muted); }
+  .btn-modal { padding: 9px 18px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; color: var(--text); cursor: pointer; font-size: 14px; transition: background .15s ease; }
+  .btn-modal:hover { background: rgba(255,255,255,.08); }
+  .btn-modal.primary { background: var(--gold); color: #0b0d12; border-color: var(--gold); font-weight: 600; }
+  .btn-modal.primary:hover { background: #ffd55a; }
+  .btn-modal[disabled] { opacity: .35; pointer-events: none; }
+  .quick-reason { display: inline-block; padding: 4px 10px; margin: 2px 4px 2px 0; font-size: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); cursor: pointer; transition: all .15s ease; }
+  .quick-reason:hover { background: rgba(245,197,66,.08); color: var(--gold); border-color: rgba(245,197,66,.3); }
+
+  /* mentor selector */
+  .mentor-sel { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px 5px 12px; font-size: 12px; color: var(--text); appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 26px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238b93a7' fill='none' stroke-width='1.5'/></svg>"); background-repeat: no-repeat; background-position: right 9px center; }
+  .mentor-sel.warn { border-color: rgba(255,138,76,.5); color: var(--rust); animation: pulse 1.5s ease-in-out infinite; }
+  .mentor-sel:focus { outline: none; border-color: var(--gold); }
+  .mentor-sel option { background: var(--panel); color: var(--text); }
+
+  /* recipe list */
+  .recipe-list { overflow-y: auto; max-height: 50vh; margin: 0 -6px; padding: 0 6px; }
+  .recipe-row { background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; transition: all .15s ease; }
+  .recipe-row:hover:not(.disabled) { background: rgba(106,177,255,.08); border-color: rgba(106,177,255,.35); }
+  .recipe-row.disabled { opacity: .45; cursor: not-allowed; }
+  .lvl-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; letter-spacing: .04em; }
+  .lvl-tag.l1 { background: rgba(106,177,255,.15); color: var(--blue); }
+  .lvl-tag.l2 { background: rgba(70,209,163,.15); color: var(--emerald); }
+  .lvl-tag.l3 { background: rgba(245,197,66,.15); color: var(--gold); }
+  .lvl-tag.l4 { background: rgba(255,107,138,.18); color: var(--rose); }
+  .cost-chip { display: inline-block; font-size: 11px; padding: 2px 7px; margin: 2px 3px 0 0; border-radius: 6px; background: rgba(255,255,255,.04); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cost-chip.semi { background: rgba(106,177,255,.08); color: var(--blue); }
+  .cost-chip.missing { background: rgba(255,107,138,.12); color: var(--rose); text-decoration: line-through; }
+
+  /* dice */
+  .dice-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .dice-btn { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; font-size: 18px; font-weight: 700; cursor: pointer; transition: all .15s ease; color: var(--text); font-variant-numeric: tabular-nums; user-select: none; }
+  .dice-btn:hover { background: rgba(245,197,66,.08); border-color: rgba(245,197,66,.4); }
+  .dice-btn.selected { background: var(--gold); color: #0b0d12; border-color: var(--gold); }
+  .dice-btn.fail { background: rgba(255,107,138,.06); border-color: rgba(255,107,138,.18); }
+  .dice-btn.fail.selected { background: var(--rose); color: #0b0d12; border-color: var(--rose); }
+  .dice-btn.pass { background: rgba(70,209,163,.04); }
+
+  .ribbon-success { background: linear-gradient(135deg, rgba(70,209,163,.18), rgba(70,209,163,.04)); border: 1px solid rgba(70,209,163,.4); color: var(--emerald); }
+  .ribbon-fail { background: linear-gradient(135deg, rgba(255,107,138,.18), rgba(255,107,138,.04)); border: 1px solid rgba(255,107,138,.4); color: var(--rose); }
+
+  /* readonly team view */
+  .readonly-badge { background: linear-gradient(135deg, rgba(106,177,255,.18), rgba(106,177,255,.06)); border: 1px solid rgba(106,177,255,.4); color: var(--blue); padding: 4px 10px; border-radius: 999px; font-size: 11px; letter-spacing: .08em; font-weight: 600; text-transform: uppercase; }
+  .readonly-main #cards { max-width: 640px; margin: 0 auto; }
+  @media (min-width: 900px) { .readonly-main #cards { grid-template-columns: 1fr !important; } }
+  @media (min-width: 1200px) {
+    .readonly-main #cards { grid-template-columns: 1fr !important; max-width: 720px; }
+    .readonly-main .panel > .flex > .flex-1 { padding: 24px !important; }
+    .readonly-main .panel .display.num.text-3xl { font-size: 30px !important; }
+    .readonly-main .panel .display.text-xl { font-size: 20px !important; }
+    .readonly-main .panel .res-pill { padding: 8px 10px !important; }
+    .readonly-main .panel .res-pill .num.text-sm { font-size: 14px !important; }
+    .readonly-main .panel .res-pill .text-xs { font-size: 12px !important; }
+    .readonly-main .panel .prod-row .text-sm { font-size: 14px !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="sticky-top sticky top-0 z-50 border-b border-[color:var(--line)]">
+  <div class="container max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background: linear-gradient(135deg,#f5c542,#ff6b8a);">
+        <span class="text-[#0b0d12] display text-lg">🏆</span>
+      </div>
+      <div class="display text-[16px] leading-tight truncate">青年营计分台</div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="global-logs-btn" class="btn-global-logs" title="全局日志">📜</button>
+      <button id="reset-btn" class="btn-global-logs" title="重置游戏 (双重确认)" style="color: var(--rose);">🔄</button>
+      <select id="mentor-select" class="mentor-sel warn" title="选择你的导师身份">
+        <option value="">选择导师</option>
+        <option value="A">导师 A</option>
+        <option value="B">导师 B</option>
+        <option value="C">导师 C</option>
+        <option value="D">导师 D</option>
+        <option value="E">导师 E</option>
+      </select>
+      <div class="flex items-center gap-1.5">
+        <span id="sync-dot" class="dot dot-loading"></span>
+        <span id="sync-text" class="text-[11px] text-[color:var(--muted)] hidden sm:inline">连接中…</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container max-w-3xl mx-auto px-4 py-5">
+  <div id="setup-banner" class="hidden banner p-4 mb-4 text-sm">
+    <div class="display text-base mb-2">📋 需要设置 Google Sheet 后端</div>
+    <ol class="text-[color:var(--muted)] text-[13px] space-y-1 list-decimal list-inside">
+      <li>新建 Google Sheet，<code>扩展程序 → Apps Script</code></li>
+      <li>把 <code>apps-script.gs</code> 整份贴进去 → 保存 → 运行 <code>setup()</code></li>
+      <li><code>部署 → 网页应用 → 执行身份: 我 → 可访问: 任何人</code></li>
+      <li>复制 URL → 粘贴到此文件 <code>WEBAPP_URL</code></li>
+    </ol>
+  </div>
+
+  <div id="cards" class="grid-cards"></div>
+
+  <div class="text-center text-[10px] tracking-widest text-[color:var(--muted)] uppercase pt-2 pb-8">
+    <span id="footer-status">Live · 每 3 秒同步</span>
+  </div>
+</main>
+
+<div id="toast-wrap" class="toast-wrap"></div>
+
+<!-- ADJUST modal -->
+<div id="adjust-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel">
+    <div class="flex items-start justify-between mb-4">
+      <div class="display text-base">调整记录</div>
+      <button id="modal-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+    <div id="modal-preview" class="text-center py-3 mb-4 rounded-xl" style="background: rgba(255,255,255,.03); border: 1px solid var(--line);"></div>
+
+    <div class="mb-4">
+      <label class="stat-label block mb-2">数额 (正数=加, 负数=减) <span class="text-[color:var(--rust)]">*</span></label>
+      <input id="modal-delta" type="number" inputmode="numeric" class="delta-input" placeholder="例: 500  /  -500" />
+      <div id="modal-quick-delta" class="mt-2"></div>
+    </div>
+
+    <div class="mb-3">
+      <label class="stat-label block mb-2">原因 <span class="text-[color:var(--rust)]">*</span></label>
+      <textarea id="modal-reason" class="reason-input" rows="2" placeholder="例: 完成任务奖励 / 违规扣分" maxlength="200"></textarea>
+      <div id="modal-quick" class="mt-2"></div>
+    </div>
+
+    <div class="flex gap-2 justify-end">
+      <button id="modal-cancel" class="btn-modal">取消</button>
+      <button id="modal-confirm" class="btn-modal primary" disabled>确认 · ⌘↵</button>
+    </div>
+  </div>
+</div>
+
+<!-- RD (Research) modal -->
+<div id="draw-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel wide">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" id="draw-title">🧪 研发部投资</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="draw-subtitle">花金币投资研发 · 失败钱拿不回来</div>
+      </div>
+      <button id="draw-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+
+    <!-- Stage: confirm (cost + roll button) -->
+    <div id="draw-confirm" class="hidden">
+      <div class="draw-stage">
+        <div class="draw-emoji idle" style="font-size: 56px">🧪</div>
+        <div class="draw-label" style="color: var(--gold)" id="draw-cost-label">投资 500 金币</div>
+        <div class="text-sm" style="color: var(--muted)" id="draw-fail-label">失败概率 20% · 失败时金币不退</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-2" id="draw-current-coins">当前金币: —</div>
+      </div>
+      <div class="text-[11px] text-[color:var(--muted)] mb-2 text-center">奖品池 (随机命中)</div>
+      <div class="flex flex-wrap gap-1.5 justify-center mb-3" id="draw-prize-pool"></div>
+      <div class="flex gap-2 justify-end">
+        <button id="draw-cancel-btn" class="btn-modal">取消</button>
+        <button id="draw-submit" class="btn-modal primary" disabled>投资研发 · ⌘↵</button>
+      </div>
+    </div>
+
+    <!-- Stage: rolling -->
+    <div id="draw-loading" class="draw-stage hidden">
+      <div class="draw-emoji" style="animation: spin 1s ease-in-out infinite">⚗️</div>
+      <div class="draw-label spinning">研发进行中…</div>
+    </div>
+
+    <!-- Stage: result -->
+    <div id="draw-result" class="draw-stage hidden">
+      <div class="draw-emoji reveal" id="draw-result-emoji">🎉</div>
+      <div class="draw-label win" id="draw-result-label">研发成功</div>
+      <div class="text-sm" style="color: var(--muted)" id="draw-result-detail"></div>
+      <div class="flex gap-2 justify-center mt-4">
+        <button id="draw-result-close" class="btn-modal">完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SELL modal -->
+<div id="sell-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel wide">
+    <!-- Stage A: pick product from inventory -->
+    <div id="sell-stage-pick">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="display text-base" id="sell-country-title">💸 销售</div>
+          <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="sell-subtitle">从库存选一件产品 (只显示有库存的)</div>
+        </div>
+        <button class="sell-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div id="sell-item-list" class="recipe-list"></div>
+    </div>
+
+    <!-- Stage B: configure sale -->
+    <div id="sell-stage-confirm" class="hidden">
+      <div class="flex items-start justify-between mb-3">
+        <button id="sell-back" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-sm flex items-center gap-1"><span>←</span> 返回</button>
+        <button class="sell-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div id="sell-confirm-preview" class="text-center py-4 mb-4 rounded-xl" style="background: rgba(255,255,255,.03); border: 1px solid var(--line);"></div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">销售对象 <span class="text-[color:var(--rust)]">*</span></label>
+        <div class="dest-tabs" id="sell-dest-tabs"></div>
+      </div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">数量 <span class="text-[color:var(--rust)]">*</span> <span class="text-[10px] text-[color:var(--muted)] normal-case ml-1" id="sell-stock-info"></span></label>
+        <div class="flex items-center justify-center">
+          <div class="qty-stepper">
+            <button class="qty-btn" id="sell-qty-minus">−</button>
+            <span class="qty-val" id="sell-qty-val">1</span>
+            <button class="qty-btn" id="sell-qty-plus">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">单价 <span class="text-[color:var(--rust)]">*</span> <span class="text-[10px] text-[color:var(--muted)] normal-case ml-1" id="sell-price-hint"></span></label>
+        <input id="sell-price" type="number" inputmode="numeric" class="price-input" placeholder="单价" />
+      </div>
+
+      <div class="buy-summary" id="sell-summary"></div>
+
+      <!-- Transport: dice + optional nofail card -->
+      <div id="sell-nofail-section" class="hidden">
+        <div class="nofail-toggle" id="sell-nofail-toggle">
+          <div class="check">✓</div>
+          <div class="flex-1">
+            <div class="text-sm" style="color: var(--emerald); font-weight: 600;">🎫 使用免失败运输卡</div>
+            <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="sell-nofail-info">跳过骰子, 自动成功运输</div>
+          </div>
+        </div>
+      </div>
+      <div id="sell-dice-section" class="mb-4">
+        <label class="stat-label block mb-2">🚛 运输骰 <span class="text-[color:var(--rust)]">*</span> <span class="text-[10px] text-[color:var(--muted)] normal-case ml-1">🎲 4 = 运输失败,产品损失 · 1·2·3·5·6 = 成功</span></label>
+        <div class="ship-dice-row" id="sell-dice-buttons">
+          <button class="ship-dice-btn pass" data-sdice="1">1</button>
+          <button class="ship-dice-btn pass" data-sdice="2">2</button>
+          <button class="ship-dice-btn pass" data-sdice="3">3</button>
+          <button class="ship-dice-btn fail" data-sdice="4">4</button>
+          <button class="ship-dice-btn pass" data-sdice="5">5</button>
+          <button class="ship-dice-btn pass" data-sdice="6">6</button>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">原因 <span class="text-[color:var(--rust)]">*</span></label>
+        <textarea id="sell-reason" class="reason-input" rows="2" placeholder="例: 国际贸易 / 出售给银行" maxlength="200"></textarea>
+      </div>
+
+      <div class="flex gap-2 justify-end">
+        <button id="sell-cancel" class="btn-modal">取消</button>
+        <button id="sell-confirm" class="btn-modal primary" disabled>确认销售 · ⌘↵</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ASSET breakdown modal -->
+<div id="asset-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" id="asset-title">资产明细</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="asset-subtitle">金币 + 资源估值 + 产品估值</div>
+      </div>
+      <button id="asset-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+    <div class="asset-table" id="asset-body"></div>
+    <div class="asset-total">
+      <div class="label">总资产</div>
+      <div class="val" id="asset-grand-total">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- BUY modal -->
+<div id="buy-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel wide">
+    <!-- Stage A: pick item -->
+    <div id="buy-stage-pick">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="display text-base" id="buy-country-title">🛒 采购</div>
+          <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="buy-coins-info">当前金币: —</div>
+        </div>
+        <button class="buy-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div class="flex items-center gap-1 mb-3 overflow-x-auto no-scrollbar" id="buy-cat-tabs">
+        <button class="tab active" data-cat="resource">基础资源</button>
+        <button class="tab" data-cat="l1">L1 产品</button>
+        <button class="tab" data-cat="l2">L2 产品</button>
+      </div>
+      <div id="buy-item-list" class="recipe-list"></div>
+    </div>
+
+    <!-- Stage B: confirm with qty + reason -->
+    <div id="buy-stage-confirm" class="hidden">
+      <div class="flex items-start justify-between mb-3">
+        <button id="buy-back" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-sm flex items-center gap-1"><span>←</span> 返回</button>
+        <button class="buy-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div id="buy-confirm-preview" class="text-center py-4 mb-4 rounded-xl" style="background: rgba(255,255,255,.03); border: 1px solid var(--line);"></div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">数量 <span class="text-[color:var(--rust)]">*</span></label>
+        <div class="flex items-center justify-center gap-3">
+          <div class="qty-stepper">
+            <button class="qty-btn" id="buy-qty-minus">−</button>
+            <span class="qty-val" id="buy-qty-val">1</span>
+            <button class="qty-btn" id="buy-qty-plus">+</button>
+          </div>
+        </div>
+        <div id="buy-quick-qty" class="mt-2 text-center"></div>
+      </div>
+
+      <div class="buy-summary" id="buy-summary"></div>
+
+      <div class="mb-3">
+        <label class="stat-label block mb-2">原因 <span class="text-[color:var(--rust)]">*</span></label>
+        <textarea id="buy-reason" class="reason-input" rows="2" placeholder="例: 补充库存 / 准备制造" maxlength="200"></textarea>
+      </div>
+
+      <div class="flex gap-2 justify-end">
+        <button id="buy-cancel" class="btn-modal">取消</button>
+        <button id="buy-confirm" class="btn-modal primary" disabled>确认采购 · ⌘↵</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESET modal (two-step confirm) -->
+<div id="reset-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" style="color: var(--rose)">🔄 重置游戏</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5">恢复所有国家到 InitialState 设定 · 操作无法撤销</div>
+      </div>
+      <button id="reset-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+
+    <!-- Step 1: review what will happen -->
+    <div id="reset-step1">
+      <div class="pc-banner" style="background: linear-gradient(135deg, rgba(255,107,138,.12), rgba(255,107,138,.03)); border-color: rgba(255,107,138,.40); margin-bottom: 14px;">
+        <div style="font-size:13px; font-weight:700; color: var(--rose); margin-bottom:8px;">⚠️ 此操作会清除以下数据:</div>
+        <ul class="text-[12px] text-[color:var(--text)] space-y-1 ml-4 list-disc">
+          <li>所有日志 (Log 表清空)</li>
+          <li>所有产品库存归 0</li>
+          <li>所有采购单清空</li>
+          <li>所有国家: <b>金币 / 资源</b> 恢复 InitialState 设定</li>
+          <li>所有国家: 爱心 / 荣誉 / Level / 计数器 / 免失败卡 归 0</li>
+        </ul>
+        <div class="text-[11px] mt-2" style="color: var(--muted)">保留: Prices / Config / RDPrizes / InitialState (这些是配置, 不动)</div>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button id="reset-cancel-1" class="btn-modal">取消</button>
+        <button id="reset-next" class="btn-modal" style="background: rgba(255,107,138,.18); border-color: var(--rose); color: var(--rose);">我看过了 → 下一步</button>
+      </div>
+    </div>
+
+    <!-- Step 2: final confirm with typed token -->
+    <div id="reset-step2" class="hidden">
+      <div class="pc-banner" style="background: linear-gradient(135deg, rgba(255,107,138,.18), rgba(255,107,138,.06)); border-color: var(--rose); margin-bottom: 14px;">
+        <div style="font-size:13px; font-weight:700; color: var(--rose); margin-bottom:8px;">🚨 最后确认</div>
+        <div class="text-[12px] mb-3">在下方输入 <code style="background:rgba(0,0,0,.4); padding:2px 6px; border-radius:4px; color: var(--rose); font-weight:700;">RESET</code> 才能继续 (大小写敏感):</div>
+        <input id="reset-token" type="text" class="price-input" placeholder="RESET" style="text-align:center; font-size:18px;" autocomplete="off" />
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button id="reset-cancel-2" class="btn-modal">取消</button>
+        <button id="reset-confirm" class="btn-modal" disabled style="background: var(--rose); color:#0b0d12; font-weight:800;">确认重置 ⚠</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PURCHASE CENTER modal -->
+<div id="purchase-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" id="purchase-title">📋 采购中心</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="purchase-subtitle">申请采购单 · 有单才能生产</div>
+      </div>
+      <button id="purchase-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+
+    <div class="pc-banner" style="margin-bottom: 14px;">
+      <div class="pc-banner-title">📋 选择 Level 申请 <span class="text-[10px] font-normal text-[color:var(--muted)]" id="pcm-status"></span></div>
+      <div class="pc-banner-sub">每张 <span class="num text-[color:var(--rust)] font-bold" id="pcm-cost">100</span> 金币 · 系统按国家在该 Level 随机指派一项产品 · 最多持 <span id="pcm-limit">2</span> 张</div>
+      <div class="pc-lv-row" id="pcm-lv-row">
+        <button class="pc-lv-btn" data-pcm-lv="1">L1</button>
+        <button class="pc-lv-btn" data-pcm-lv="2">L2</button>
+        <button class="pc-lv-btn" data-pcm-lv="3">L3</button>
+        <button class="pc-lv-btn" data-pcm-lv="4">L4</button>
+      </div>
+    </div>
+
+    <div class="stat-label mb-2">当前持有</div>
+    <div id="pcm-active-list" class="mb-3"></div>
+
+    <div class="flex gap-2 justify-end">
+      <button id="purchase-cancel" class="btn-modal">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS modal -->
+<div id="logs-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel wide">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" id="logs-title">国家日志</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5">最近 100 条 · 按时间倒序</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="logs-refresh" class="btn-modal" style="padding: 5px 10px; font-size: 12px;">⟳ 刷新</button>
+        <button id="logs-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-1 mb-3 overflow-x-auto no-scrollbar" id="logs-filter">
+      <button class="tab active" data-filter="all">全部</button>
+      <button class="tab" data-filter="adjust">⚙️ 调整</button>
+      <button class="tab" data-filter="purchase_apply">📋 采购单</button>
+      <button class="tab" data-filter="buy">🛒 采购</button>
+      <button class="tab" data-filter="produce_ok">✓ 制造</button>
+      <button class="tab" data-filter="produce_fail">✗ 失败</button>
+      <button class="tab" data-filter="sell">💸 销售</button>
+      <button class="tab" data-filter="sell_fail">🚛 运输失败</button>
+      <button class="tab" data-filter="rd_ok">🧪 研发</button>
+      <button class="tab" data-filter="rd_fail">💥 研发失败</button>
+    </div>
+    <div id="logs-list" class="log-list">
+      <div class="text-center text-[color:var(--muted)] py-8 text-sm">加载中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCE modal -->
+<div id="produce-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel wide">
+    <!-- Stage A: recipe picker -->
+    <div id="produce-stage-pick">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <div class="display text-base" id="produce-country-title">制造产品</div>
+          <div class="text-[11px] text-[color:var(--muted)] mt-0.5">选择要制造的产品 · 红色 = 资源不足</div>
+        </div>
+        <button class="produce-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div class="flex items-center gap-1 mb-3 overflow-x-auto no-scrollbar" id="produce-level-tabs">
+        <button class="tab active" data-lvl="0">全部</button>
+        <button class="tab" data-lvl="1">L1</button>
+        <button class="tab" data-lvl="2">L2</button>
+        <button class="tab" data-lvl="3">L3</button>
+        <button class="tab" data-lvl="4">L4</button>
+      </div>
+      <div id="produce-recipe-list" class="recipe-list"></div>
+    </div>
+
+    <!-- Stage B: confirm + dice + reason -->
+    <div id="produce-stage-confirm" class="hidden">
+      <div class="flex items-start justify-between mb-4">
+        <button id="produce-back" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-sm flex items-center gap-1"><span>←</span> 返回</button>
+        <button class="produce-close text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+      </div>
+      <div id="produce-confirm-preview" class="text-center py-4 mb-4 rounded-xl" style="background: rgba(255,255,255,.03); border: 1px solid var(--line);"></div>
+      <div id="produce-dice-section" class="mb-4">
+        <label class="stat-label block mb-2">骰子结果 <span class="text-[color:var(--rust)]">*</span> <span class="text-[10px] text-[color:var(--muted)] normal-case ml-1">🎲 1 = 失败,资源浪费 · 2·3·4·5·6 = 成功</span></label>
+        <div class="dice-row" id="dice-buttons">
+          <button class="dice-btn fail" data-dice="1">1</button>
+          <button class="dice-btn pass" data-dice="2">2</button>
+          <button class="dice-btn pass" data-dice="3">3</button>
+          <button class="dice-btn pass" data-dice="4">4</button>
+          <button class="dice-btn pass" data-dice="5">5</button>
+          <button class="dice-btn pass" data-dice="6">6</button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="stat-label block mb-2">原因 <span class="text-[color:var(--rust)]">*</span></label>
+        <textarea id="produce-reason" class="reason-input" rows="2" placeholder="例: 完成第一阶段任务 / 团队配合生产" maxlength="200"></textarea>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button id="produce-cancel" class="btn-modal">取消</button>
+        <button id="produce-confirm" class="btn-modal primary" disabled>确认制造 · ⌘↵</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================================================
+// CONFIG
+// ==========================================================================
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz8Y2RFbIjoW8A93uvOLcEODG_0tFIWqbBGXQvxLv0NgzT9m03JqZzUyE02vYFJvPdeSQ/exec';
+const POLL_INTERVAL_MS = 3000;
+
+// ===== Team readonly mode =====
+// If URL has ?country=<token>, we enter readonly mode showing only that one
+// country, with all edit controls hidden. Tokens are managed in the backend's
+// "CountryTokens" sheet (run `generateTokens()` in Apps Script to mint).
+const COUNTRY_TOKEN = new URLSearchParams(location.search).get('country') || '';
+const READONLY = !!COUNTRY_TOKEN;
+
+const COUNTRY_META = {
+  my: { name: '马来西亚', flag: 'MY', domain: 'Energy · Resources',       stripClass: 'strip-my' },
+  kr: { name: '韩国',     flag: 'KR', domain: 'Tech · AI',                stripClass: 'strip-kr' },
+  jp: { name: '日本',     flag: 'JP', domain: 'Medical · Healthcare',     stripClass: 'strip-jp' },
+  us: { name: '美国',     flag: 'US', domain: 'Finance · Defense · Space', stripClass: 'strip-us' },
+};
+const COUNTRY_ORDER = ['my', 'kr', 'jp', 'us'];
+
+const RES = [
+  { key: 'water',       label: '水',   icon: '💧' },
+  { key: 'oil',         label: '石油', icon: '🛢' },
+  { key: 'wood',        label: '木材', icon: '🪵' },
+  { key: 'metal',       label: '金属', icon: '⚙️' },
+  { key: 'electricity', label: '电力', icon: '⚡' },
+  { key: 'chips',       label: '晶片', icon: '💎' },
+];
+
+const RES_LABEL = { water:'水', oil:'石油', wood:'木材', metal:'金属', electricity:'电力', chips:'晶片' };
+
+// Mirror of backend RECIPES.
+const RECIPES = {
+  '石油燃料包':       { country: 'my', level: 1, res: { oil: 100, water: 100 }, semi: [] },
+  '木材资源包':       { country: 'my', level: 1, res: { wood: 100, oil: 100 }, semi: [] },
+  '基础发电机':       { country: 'my', level: 1, res: { metal: 100, oil: 100 }, semi: [] },
+  '工业能源核心':     { country: 'my', level: 2, res: { oil: 200, metal: 100, electricity: 100 }, semi: ['石油燃料包'] },
+  '港口运输系统':     { country: 'my', level: 2, res: { metal: 200, wood: 100, electricity: 200 }, semi: ['木材资源包'] },
+  '工业燃料系统':     { country: 'my', level: 2, res: { oil: 300, electricity: 100 }, semi: ['基础发电机', '石油燃料包'] },
+  '太阳能核心':       { country: 'my', level: 3, res: { chips: 100, metal: 200, electricity: 200 }, semi: ['石油燃料包', '工业燃料系统', '实验仪器'] },
+  '水力能源系统':     { country: 'my', level: 3, res: { metal: 300, water: 300 }, semi: ['基础发电机', '工业能源核心', '国家安全AI'] },
+  '永续能源模组':     { country: 'my', level: 3, res: { chips: 200, electricity: 300, oil: 100 }, semi: ['木材资源包', '港口运输系统', 'AI电脑'] },
+  '国家能源网络':     { country: 'my', level: 4, res: { chips: 300, metal: 300, electricity: 300 }, semi: ['太阳能核心', '水力能源系统', 'AI核心系统', '国家安全AI'] },
+  '全球能源供应系统': { country: 'my', level: 4, res: { oil: 500, electricity: 200, chips: 200 }, semi: ['永续能源模组', '太阳能核心', '生化医疗系统', '智能机器人'] },
+  '手机零件':         { country: 'kr', level: 1, res: { metal: 100, electricity: 100 }, semi: [] },
+  '基础电脑系统':     { country: 'kr', level: 1, res: { chips: 100, electricity: 100 }, semi: [] },
+  '电竞设备':         { country: 'kr', level: 1, res: { metal: 100, chips: 100 }, semi: [] },
+  'AI电脑':           { country: 'kr', level: 2, res: { chips: 200, electricity: 200, metal: 100 }, semi: ['基础电脑系统'] },
+  '智能监控系统':     { country: 'kr', level: 2, res: { chips: 200, metal: 200 }, semi: ['基础电脑系统'] },
+  '云端AI服务器':     { country: 'kr', level: 2, res: { chips: 300, electricity: 200 }, semi: ['手机零件', '基础电脑系统'] },
+  '智能机器人':       { country: 'kr', level: 3, res: { chips: 100, metal: 200, electricity: 300 }, semi: ['手机零件', '智能监控系统', '国家安全AI'] },
+  '自动驾驶系统':     { country: 'kr', level: 3, res: { chips: 300, electricity: 200, metal: 100 }, semi: ['基础电脑系统', '智能监控系统', '实验仪器'] },
+  'AI核心系统':       { country: 'kr', level: 3, res: { chips: 200, electricity: 300, metal: 100 }, semi: ['电竞设备', '云端AI服务器', '工业燃料系统'] },
+  '卫星科技系统':     { country: 'kr', level: 4, res: { chips: 500, metal: 200, electricity: 200 }, semi: ['智能机器人', 'AI核心系统', '医疗AI诊断系统', '太空卫星网络'] },
+  '火箭控制系统':     { country: 'kr', level: 4, res: { metal: 200, electricity: 500, chips: 200 }, semi: ['自动驾驶系统', 'AI核心系统', '永续能源模组', '生化医疗系统'] },
+  '医疗用品':         { country: 'jp', level: 1, res: { wood: 100, water: 100 }, semi: [] },
+  '药品包':           { country: 'jp', level: 1, res: { water: 100, oil: 100 }, semi: [] },
+  '防护装备':         { country: 'jp', level: 1, res: { wood: 100, metal: 100 }, semi: [] },
+  '医疗设备':         { country: 'jp', level: 2, res: { metal: 200, electricity: 100, water: 100 }, semi: ['医疗用品'] },
+  '实验仪器':         { country: 'jp', level: 2, res: { metal: 200, chips: 100 }, semi: ['防护装备'] },
+  '紧急救援系统':     { country: 'jp', level: 2, res: { electricity: 200, metal: 200 }, semi: ['药品包', '医疗用品'] },
+  '生化医疗系统':     { country: 'jp', level: 3, res: { chips: 300, water: 200, electricity: 100 }, semi: ['医疗用品', '医疗设备', '工业能源核心'] },
+  '疫苗研发核心':     { country: 'jp', level: 3, res: { chips: 100, metal: 200, electricity: 300 }, semi: ['防护装备', '实验仪器', '智能监控系统'] },
+  '医疗AI诊断系统':   { country: 'jp', level: 3, res: { chips: 200, electricity: 200, oil: 200 }, semi: ['药品包', '紧急救援系统', '战略无人机'] },
+  '全球医疗网络':     { country: 'jp', level: 4, res: { chips: 400, electricity: 200, water: 300 }, semi: ['医疗AI诊断系统', '疫苗研发核心', '太空卫星网络', 'AI核心系统'] },
+  '高级医疗产品':     { country: 'jp', level: 4, res: { chips: 400, electricity: 300, water: 200 }, semi: ['生化医疗系统', '疫苗研发核心', '永续能源模组', '太空科技'] },
+  '金融软件':         { country: 'us', level: 1, res: { chips: 100, electricity: 100 }, semi: [] },
+  '投资系统':         { country: 'us', level: 1, res: { metal: 100, chips: 100 }, semi: [] },
+  '商业网络系统':     { country: 'us', level: 1, res: { electricity: 100, metal: 100 }, semi: [] },
+  '国防系统':         { country: 'us', level: 2, res: { metal: 300, electricity: 200, chips: 100 }, semi: ['商业网络系统'] },
+  '战略无人机':       { country: 'us', level: 2, res: { chips: 300, metal: 200 }, semi: ['金融软件'] },
+  '国家安全AI':       { country: 'us', level: 2, res: { chips: 200, electricity: 300 }, semi: ['商业网络系统', '投资系统'] },
+  '太空科技':         { country: 'us', level: 3, res: { chips: 500, metal: 400, electricity: 400 }, semi: ['投资系统', '战略无人机', '紧急救援系统'] },
+  '宇航系统':         { country: 'us', level: 3, res: { electricity: 500, chips: 500 }, semi: ['金融软件', '国家安全AI', '工业能源核心'] },
+  '太空卫星网络':     { country: 'us', level: 3, res: { metal: 500, chips: 400 }, semi: ['商业网络系统', '国防系统', 'AI电脑'] },
+  '全球金融AI系统':   { country: 'us', level: 4, res: { metal: 500, chips: 100, electricity: 300 }, semi: ['太空卫星网络', '太空科技', '永续能源模组', '医疗AI诊断系统'] },
+  '世界防御网络':     { country: 'us', level: 4, res: { chips: 300, metal: 100, electricity: 500 }, semi: ['太空卫星网络', '宇航系统', '太阳能核心', '智能机器人'] },
+};
+
+// ==========================================================================
+// LEVEL_UP rules
+// ==========================================================================
+const LEVEL_UP = {
+  2: { label: 'Lv.1 → Lv.2', conds: [
+    { key: 'l1_orders', label: '完成 L1 产品', need: 10 },
+    { key: 'coins',     label: '金币',         need: 20000 },
+    { key: 'shipments', label: '成功运输',     need: 5 },
+  ]},
+  3: { label: 'Lv.2 → Lv.3', conds: [
+    { key: 'l2_orders', label: '完成 L2 产品', need: 5 },
+    { key: 'coins',     label: '金币',         need: 50000 },
+  ]},
+  4: { label: 'Lv.3 → Lv.4', conds: [
+    { key: 'l3_orders', label: '完成 L3 产品', need: 3 },
+    { key: 'coins',     label: '金币',         need: 80000 },
+  ]},
+  5: { label: 'L4 终极', conds: [
+    { key: 'l4_distinct', label: '不同 L4 产品', need: 2 },
+    { key: 'coins',       label: '金币',         need: 80000 },
+    { key: 'love',        label: '爱心值',       need: 1 },
+    { key: 'honor',       label: '荣誉值',       need: 1 },
+  ]},
+};
+
+// ==========================================================================
+// State + helpers
+// ==========================================================================
+let latestData = { countries: [], products: [], prices: [], config: [], rd_prizes: [], purchase_orders: [], love_table: [] };
+let mentor = localStorage.getItem('ycs.mentor') || '';
+
+const fmt = (n) => { if (n === '' || n == null) return '—'; const v = Number(n); return isFinite(v) ? v.toLocaleString('en-US') : '—'; };
+const numv = (n) => { if (n === '' || n == null) return 0; const v = Number(n); return isFinite(v) ? v : 0; };
+function escapeHtml(s) { if (s == null) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+function computeDerived(country, products) {
+  const l4names = new Set();
+  products.forEach(p => { if (Number(p.level) === 4 && Number(p.qty) >= 1) l4names.add(p.name); });
+  return { l4_distinct: l4names.size };
+}
+
+/** Computed total assets: coins + resources × price + products × price (all levels). */
+/** Look up love multiplier from sheet table (step function — highest love ≤ value). */
+function getLoveMultiplier(loveVal) {
+  const v = numv(loveVal);
+  const table = (latestData.love_table || [])
+    .map(r => ({ love: numv(r.love), mult: numv(r.multiplier) }))
+    .filter(r => isFinite(r.love) && isFinite(r.mult) && r.mult > 0)
+    .sort((a, b) => a.love - b.love);
+  if (!table.length) return 1.0;
+  let mult = 1.0;
+  for (const row of table) {
+    if (v >= row.love) mult = row.mult;
+    else break;
+  }
+  return mult > 0 ? mult : 1.0;
+}
+
+/**
+ * 总资产 = ((金币 + 产品估值) × 爱心倍数) + (荣誉值 × 荣誉金额)
+ *   - 资源估值已在 Prices.asset_value 设为 0,自然不算入基数
+ *   - 爱心倍数来自 LoveTable (step function)
+ *   - 荣誉金额来自 Config.honor_coin
+ */
+function computeAsset(country, products, prices) {
+  if (!country) return 0;
+  const coins = numv(country.coins);
+  // Lookup: use asset_value (估值). 0 respected; blank falls back to price.
+  const lookup = {};
+  (prices || []).forEach(p => {
+    const hasAV = p.asset_value !== '' && p.asset_value != null && isFinite(Number(p.asset_value));
+    lookup[`${p.item_type}:${p.item_key}`] = {
+      value: hasAV ? Number(p.asset_value) : numv(p.price),
+      unit_size: numv(p.unit_size) || 1,
+    };
+  });
+  let itemTotal = 0;
+  // resources (typically 0 since asset_value=0)
+  RES.forEach(r => {
+    const units = numv(country[r.key]);
+    const info = lookup['resource:' + r.key];
+    if (info && info.unit_size > 0) itemTotal += (units / info.unit_size) * info.value;
+  });
+  // products
+  (products || []).forEach(p => {
+    const qty = numv(p.qty);
+    if (qty <= 0) return;
+    const lvl = Number(p.level);
+    const cat = lvl === 1 ? 'l1' : lvl === 2 ? 'l2' : lvl === 3 ? 'l3' : lvl === 4 ? 'l4' : null;
+    if (!cat) return;
+    const info = lookup[`${cat}:${p.name}`];
+    if (info) itemTotal += qty * info.value;
+  });
+  const base = coins + itemTotal;
+  const loveMult = getLoveMultiplier(country.love);
+  const honorCoin = Number(getConfig('honor_coin', 1000)) || 0;
+  const honorBonus = numv(country.honor) * honorCoin;
+  return Math.round(base * loveMult + honorBonus);
+}
+
+function setMentor(v) {
+  mentor = v || '';
+  if (mentor) localStorage.setItem('ycs.mentor', mentor);
+  else localStorage.removeItem('ycs.mentor');
+  const sel = document.getElementById('mentor-select');
+  sel.value = mentor;
+  sel.classList.toggle('warn', !mentor);
+  sel.classList.toggle('set', !!mentor);
+}
+
+function requireMentor() {
+  if (!mentor) {
+    toast('请先在右上角选择导师身份 (A/B/C/D/E)', 'err', 2500);
+    document.getElementById('mentor-select').focus();
+    return false;
+  }
+  return true;
+}
+
+// ==========================================================================
+// Render
+// ==========================================================================
+let lastSnapshot = '';
+
+function renderCard(country, productsForCountry) {
+  const id = country.country_id;
+  const meta = COUNTRY_META[id] || { name: id, flag: '🏳', domain: '', stripClass: '' };
+  const lvl = country.level || 1;
+
+  const productRows = productsForCountry
+    .slice()
+    .filter(p => Number(p.qty) > 0)
+    .sort((a, b) => (b.level - a.level) || String(a.name).localeCompare(String(b.name)))
+    .map(p => `
+      <div class="prod-row flex items-center justify-between py-2.5">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-[color:var(--muted)] num w-6">L${p.level}</span>
+          <span class="text-sm">${escapeHtml(p.name)}</span>
+        </div>
+        <span class="num text-sm">×${fmt(p.qty)}</span>
+      </div>
+    `).join('');
+
+  const countsByLevel = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  productsForCountry.forEach(p => {
+    const n = Number(p.qty) || 0;
+    if (countsByLevel[p.level] != null) countsByLevel[p.level] += n;
+  });
+
+  const derived = computeDerived(country, productsForCountry);
+  const assetTotal = computeAsset(country, productsForCountry, latestData.prices);
+  const nextLvl = Math.min(5, (Number(lvl) || 1) + 1);
+  const rule = LEVEL_UP[nextLvl];
+  let progressHtml = '';
+  if (rule && Number(lvl) < 5) {
+    const condRows = rule.conds.map(c => {
+      const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
+      const done = current >= c.need;
+      const pct = Math.min(100, (current / c.need) * 100);
+      return `
+        <div class="flex items-center justify-between text-[12px] py-0.5">
+          <span class="flex items-center gap-1.5 min-w-0">
+            <span class="${done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} text-[13px] leading-none">${done ? '✓' : '○'}</span>
+            <span class="${done ? 'text-[color:var(--text)]' : 'text-[color:var(--muted)]'} truncate">${c.label}</span>
+          </span>
+          <span class="num text-[11px] ${done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} shrink-0 ml-2">${fmt(current)} / ${fmt(c.need)}</span>
+        </div>
+        <div class="h-1 bg-[color:var(--line)] rounded-full overflow-hidden mb-1.5">
+          <div class="h-full ${done ? 'bg-[color:var(--emerald)]' : 'bg-[color:var(--gold)]'}" style="width: ${pct}%"></div>
+        </div>
+      `;
+    }).join('');
+    const doneCount = rule.conds.filter(c => {
+      const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
+      return current >= c.need;
+    }).length;
+    const allDone = doneCount === rule.conds.length;
+    progressHtml = `
+      <div class="mb-5 rounded-2xl p-3" style="background: rgba(255,255,255,.02); border: 1px solid var(--line);">
+        <div class="flex items-center justify-between mb-2">
+          <div class="stat-label">${allDone ? '🎉 可升级' : '下一级'} · ${rule.label}</div>
+          <div class="text-[10px] ${allDone ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} num">${doneCount}/${rule.conds.length}</div>
+        </div>
+        ${condRows}
+      </div>
+    `;
+  } else if (Number(lvl) >= 5) {
+    progressHtml = `
+      <div class="mb-5 rounded-2xl p-3 text-center" style="background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(70,209,163,.06)); border: 1px solid rgba(245,197,66,.25);">
+        <div class="display text-base" style="color: var(--gold)">🏆 终极完成</div>
+      </div>
+    `;
+  }
+
+  // ===== Compact upgrade summary: single bar + tap to expand =====
+  let upgradeHtml = '';
+  if (rule && Number(lvl) < 5) {
+    const totals = rule.conds.map(c => {
+      const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
+      return { ...c, current, done: current >= c.need };
+    });
+    const doneCount = totals.filter(c => c.done).length;
+    const overallPct = (doneCount / totals.length) * 100;
+    const allDone = doneCount === totals.length;
+    const detailRows = totals.map(c => `
+      <div class="flex items-center justify-between text-[11px] py-0.5">
+        <span class="${c.done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'}">${c.done ? '✓' : '○'} ${c.label}</span>
+        <span class="num ${c.done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'}">${fmt(c.current)} / ${fmt(c.need)}</span>
+      </div>
+    `).join('');
+    const ctaLabel = nextLvl === 5 ? '🏆 完成终极目标' : `🎉 升级到 Lv.${nextLvl}`;
+    const ctaBtn = (allDone && !READONLY) ? `
+      <button class="upgrade-cta" data-upgrade-confirm="${id}" data-next-lvl="${nextLvl}">
+        <span>${ctaLabel}</span>
+        <span class="upgrade-cta-arrow">→</span>
+      </button>
+    ` : '';
+    upgradeHtml = `
+      ${ctaBtn}
+      <div class="upgrade-bar ${allDone ? 'ready' : ''} mb-2" data-upgrade-toggle>
+        <span class="text-xs ${allDone ? 'text-[color:var(--emerald)] font-bold' : 'text-[color:var(--muted)]'} shrink-0">${allDone ? '已达成 · Lv.' + nextLvl : `Lv.${lvl}→${nextLvl}`}</span>
+        <div class="upgrade-track"><div class="upgrade-fill" style="width: ${overallPct}%"></div></div>
+        <span class="text-[10px] num ${allDone ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} shrink-0">${doneCount}/${totals.length}</span>
+      </div>
+      <div class="upgrade-detail mb-4" data-upgrade-detail>${detailRows}</div>
+    `;
+  } else if (Number(lvl) >= 5) {
+    upgradeHtml = `<div class="text-center display py-2 mb-4" style="color: var(--gold); background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(70,209,163,.06)); border-radius: 10px;">🏆 终极完成</div>`;
+  }
+
+  // ===== Active purchase orders for this country =====
+  const myPOs = (latestData.purchase_orders || []).filter(o => {
+    const cid = String(o.country_id || '').trim().toLowerCase();
+    const status = String(o.status || '').trim().toLowerCase();
+    return cid === id && status === 'active';
+  });
+  const poRowHtml = myPOs.length
+    ? `<div class="po-row">${myPOs.map(o => `<span class="po-chip" title="采购单 #${escapeHtml(o.id)} → 生产即消耗"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}</span>`).join('')}</div>`
+    : (READONLY ? '' : `<div class="po-row"><span class="po-empty-hint">⌛ 无采购单 — 点 📋订单 申请</span></div>`);
+
+  // ===== Resource line: single dense row =====
+  const resLine = RES.map(r => {
+    const v = numv(country[r.key]);
+    return `<div class="res-mini"><span class="res-mini-icon">${r.icon}</span><span class="res-mini-val ${v === 0 ? 'zero' : ''}" data-flash-key="${id}:${r.key}">${fmt(v)}</span></div>`;
+  }).join('');
+
+  // ===== Card =====
+  return `
+    <section class="panel overflow-hidden" data-country="${id}">
+      <div class="flex">
+        <div class="${meta.stripClass} accent-bar"></div>
+        <div class="flex-1 p-4">
+          <!-- Header: big country badge | nofail chip (icon-only on right) -->
+          <div class="flex items-center justify-between mb-4 gap-2">
+            <div class="country-badge ${id}">${meta.flag}</div>
+            <div class="flex items-center gap-1 shrink-0">
+              ${numv(country.no_fail_cards) > 0 ? `<span class="nofail-chip" data-flash-key="${id}:no_fail_cards" title="免失败运输卡">🎫${fmt(country.no_fail_cards)}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- Hero: coins (full width, biggest number on the card) -->
+          <div class="rounded-2xl p-4 glow-gold mb-3" style="background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(245,197,66,.02));">
+            <div class="flex items-start justify-between gap-2">
+              <div class="stat-label flex items-center gap-1"><span>💰</span> 金币</div>
+              <span class="level-pill" data-flash-key="${id}:level"><span class="text-[color:var(--gold)] font-bold">Lv.${lvl}</span></span>
+            </div>
+            <div class="display num mt-1 ${READONLY ? '' : 'stat-tappable'}" style="color: var(--gold); font-size: 36px; line-height: 1;" data-flash-key="${id}:coins" ${READONLY ? '' : `data-country="${id}" data-field="coins"`}>${fmt(country.coins)}</div>
+            <div class="mt-3 pt-2 text-center asset-link" style="border-top: 1px dashed rgba(255,255,255,.08);" data-asset-detail="${id}" title="点击查看资产明细">
+              <span class="text-[10px] text-[color:var(--muted)] uppercase tracking-widest">总资产</span>
+              <span class="num text-[color:var(--text)] font-bold ml-2">${fmt(assetTotal)}</span>
+              <span data-flash-key="${id}:asset" style="display:none;">${fmt(assetTotal)}</span>
+              <span class="asset-link-icon">▸</span>
+            </div>
+          </div>
+
+          ${READONLY ? '' : `
+          <!-- Mentor action grid: 2 rows × 3 cols -->
+          <div class="act-row">
+            <button class="btn-act buy"      data-buy="${id}"      title="银行采购 (买资源/L1/L2)"><span class="ico">🛒</span><span class="lbl">购买</span></button>
+            <button class="btn-act purchase" data-purchase="${id}" title="申请采购单 (花金币换订单)"><span class="ico">📋</span><span class="lbl">订单</span></button>
+            <button class="btn-act produce"  data-produce="${id}"  title="生产产品 (需采购单)"><span class="ico">🏭</span><span class="lbl">生产</span></button>
+            <button class="btn-act sell"     data-sell="${id}"     title="销售 (产品 → 银行或他国)"><span class="ico">💸</span><span class="lbl">销售</span></button>
+            <button class="btn-act draw"     data-draw="${id}"     title="研发部投资"><span class="ico">🎁</span><span class="lbl">研发</span></button>
+            <button class="btn-act logs"     data-logs="${id}"     title="查看日志"><span class="ico">📜</span><span class="lbl">日志</span></button>
+          </div>`}
+
+          <!-- Active purchase orders -->
+          ${poRowHtml}
+
+          <!-- Love + Honor (smaller, paired) -->
+          <div class="grid grid-cols-2 gap-2 mb-4">
+            <div class="rounded-xl p-3" style="background: rgba(255,107,138,.04); border: 1px solid var(--line);">
+              <div class="stat-label flex items-center gap-1"><span class="heart-pulse">❤️</span> 爱心</div>
+              <div class="display num text-2xl mt-1 ${READONLY ? '' : 'stat-tappable'}" style="color: var(--rose)" data-flash-key="${id}:love" ${READONLY ? '' : `data-country="${id}" data-field="love"`}>${fmt(country.love)}</div>
+            </div>
+            <div class="rounded-xl p-3" style="background: rgba(70,209,163,.04); border: 1px solid var(--line);">
+              <div class="stat-label">🏆 荣誉</div>
+              <div class="display num text-2xl mt-1 ${READONLY ? '' : 'stat-tappable'}" style="color: var(--emerald)" data-flash-key="${id}:honor" ${READONLY ? '' : `data-country="${id}" data-field="honor"`}>${fmt(country.honor)}</div>
+            </div>
+          </div>
+
+          ${upgradeHtml}
+
+          <!-- Resources: single dense line (no header label) -->
+          <div class="res-line mb-3">${resLine}</div>
+
+          <!-- Products: just the list, no header label, no fake tabs -->
+          <div>
+            ${productRows ? `<div class="stat-label mb-1">产品库存</div><div class="product-list-capped">${productRows}</div>` : `<div class="text-center text-xs text-[color:var(--muted)] py-2">尚无产品</div>`}
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderAll(countries, products) {
+  const container = document.getElementById('cards');
+  const byId = {};
+  countries.forEach(c => { byId[c.country_id] = c; });
+
+  const productsByCountry = {};
+  products.forEach(p => {
+    if (!productsByCountry[p.country_id]) productsByCountry[p.country_id] = [];
+    productsByCountry[p.country_id].push(p);
+  });
+
+  let html;
+  if (READONLY) {
+    // single-card view: render whichever country backend returned
+    if (countries.length === 0) {
+      html = `<div class="text-center text-[color:var(--muted)] py-12">等待数据…</div>`;
+    } else {
+      const c = countries[0];
+      html = renderCard(c, productsByCountry[c.country_id] || []);
+    }
+  } else {
+    html = COUNTRY_ORDER.map(id => {
+      const c = byId[id] || { country_id: id, name: COUNTRY_META[id].name };
+      return renderCard(c, productsByCountry[id] || []);
+    }).join('');
+  }
+
+  if (html !== lastSnapshot) {
+    const savedInputs = {};
+    let focusedKey = null, selStart = null, selEnd = null;
+    container.querySelectorAll('input[data-coin-input]').forEach(inp => {
+      savedInputs[inp.dataset.coinInput] = inp.value;
+      if (document.activeElement === inp) {
+        focusedKey = inp.dataset.coinInput;
+        selStart = inp.selectionStart;
+        selEnd = inp.selectionEnd;
+      }
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('input[data-coin-input]').forEach(inp => {
+      const k = inp.dataset.coinInput;
+      if (savedInputs[k] != null) inp.value = savedInputs[k];
+      if (k === focusedKey) {
+        inp.focus();
+        try { inp.setSelectionRange(selStart, selEnd); } catch (_) {}
+      }
+    });
+    lastSnapshot = html;
+  }
+}
+
+// ==========================================================================
+// Network
+// ==========================================================================
+function setSyncState(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = 'dot ' + (state === 'ok' ? 'dot-live' : state === 'err' ? 'dot-err' : 'dot-loading');
+  txt.textContent = msg;
+}
+
+const FLASH_FIELDS = ['coins', 'love', 'honor', 'water', 'oil', 'wood', 'metal', 'electricity', 'chips', 'level', 'no_fail_cards'];
+
+function buildSnapshot(countries) {
+  const snap = {};
+  countries.forEach(c => {
+    FLASH_FIELDS.forEach(f => { snap[`${c.country_id}:${f}`] = numv(c[f]); });
+  });
+  return snap;
+}
+
+function diffSnapshots(prev, next) {
+  const changes = [];
+  for (const k in next) {
+    const a = prev[k]; const b = next[k];
+    if (a == null) continue;          // first load — don't flash
+    if (a === b) continue;
+    changes.push({ key: k, delta: b - a });
+  }
+  return changes;
+}
+
+function applyFlashes(changes) {
+  // run on next frame so the DOM has the new values
+  requestAnimationFrame(() => {
+    changes.forEach(({ key, delta }) => {
+      const el = document.querySelector(`[data-flash-key="${CSS.escape(key)}"]`);
+      if (!el) return;
+      el.classList.remove('num-flash-up', 'num-flash-down');
+      void el.offsetWidth; // restart animation
+      el.classList.add(delta > 0 ? 'num-flash-up' : 'num-flash-down');
+      setTimeout(() => el.classList.remove('num-flash-up', 'num-flash-down'), 1200);
+    });
+  });
+}
+
+let prevSnapshot = null;
+
+async function fetchData() {
+  if (!WEBAPP_URL) {
+    document.getElementById('setup-banner').classList.remove('hidden');
+    setSyncState('err', '未配置 WEBAPP_URL');
+    document.getElementById('footer-status').textContent = '离线 · 未配置后端';
+    renderAll([], []);
+    return;
+  }
+  try {
+    const params = new URLSearchParams({ t: String(Date.now()) });
+    if (COUNTRY_TOKEN) params.set('country', COUNTRY_TOKEN);
+    const url = WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString();
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    latestData = {
+      countries: data.countries || [],
+      products: data.products || [],
+      prices: data.prices || [],
+      config: data.config || [],
+      rd_prizes: data.rd_prizes || [],
+      purchase_orders: data.purchase_orders || [],
+      love_table: data.love_table || [],
+    };
+    const nextSnap = buildSnapshot(latestData.countries);
+    const changes = prevSnapshot ? diffSnapshots(prevSnapshot, nextSnap) : [];
+    renderAll(latestData.countries, latestData.products);
+    if (changes.length) applyFlashes(changes);
+    prevSnapshot = nextSnap;
+    setSyncState('ok', '已同步 · ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+  } catch (err) {
+    console.error('fetch error', err);
+    setSyncState('err', '同步失败');
+  }
+}
+
+async function adjust(country_id, field, delta, reason) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); return; }
+  if (!requireMentor()) return;
+  try {
+    const params = new URLSearchParams({
+      action: 'adjust', country_id, field,
+      delta: String(delta), reason: reason || '',
+      mentor: mentor, t: String(Date.now())
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+    const sign = delta > 0 ? '+' : '−';
+    const label = ({ coins: '金币', love: '爱心', honor: '荣誉' })[field] || field;
+    toast(`${meta.flag} ${meta.name} · ${label} ${sign}${fmt(Math.abs(delta))} · ${reason} · [${mentor}]`, 'ok', 2400);
+    fetchData();
+  } catch (err) {
+    toast('调整失败: ' + (err.message || err), 'err', 3500);
+  }
+}
+
+async function produce(country_id, product, dice, reason) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); return; }
+  if (!requireMentor()) return;
+  try {
+    const params = new URLSearchParams({
+      action: 'produce', country_id, product,
+      dice: dice == null ? '' : String(dice),
+      reason: reason || '', mentor, t: String(Date.now())
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+    const ok = data.success;
+    const tagStr = data.dice ? ` 🎲${data.dice}` : '';
+    toast(`${meta.flag} ${meta.name} · ${ok ? '✓ 制造成功' : '✗ 制造失败'}: ${product}${tagStr}`, ok ? 'ok' : 'err', 3200);
+    fetchData();
+    return data;
+  } catch (err) {
+    toast('制造失败: ' + (err.message || err), 'err', 3500);
+    throw err;
+  }
+}
+
+async function buy(country_id, item_type, item_key, qty, reason) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); throw new Error('no webapp'); }
+  if (!requireMentor()) throw new Error('未选择导师');
+  const params = new URLSearchParams({
+    action: 'buy', country_id, item_type, item_key,
+    qty: String(qty), reason: reason || '', mentor, t: String(Date.now())
+  });
+  const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'unknown');
+  return data;
+}
+
+async function sell(country_id, item_type, item_key, qty, to, price, reason, dice, useNofail) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); throw new Error('no webapp'); }
+  if (!requireMentor()) throw new Error('未选择导师');
+  const params = new URLSearchParams({
+    action: 'sell', country_id, item_type, item_key,
+    qty: String(qty), to: to || '',
+    price: (price == null ? '' : String(price)),
+    dice: (dice == null ? '' : String(dice)),
+    use_nofail: useNofail ? '1' : '0',
+    reason: reason || '', mentor, t: String(Date.now())
+  });
+  const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'unknown');
+  return data;
+}
+
+// ==========================================================================
+// Toast
+// ==========================================================================
+function toast(msg, type = 'ok', ms = 1800) {
+  const wrap = document.getElementById('toast-wrap');
+  if (!wrap) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.classList.add('fade'), ms - 250);
+  setTimeout(() => t.remove(), ms);
+}
+
+// ==========================================================================
+// Adjust modal
+// ==========================================================================
+const QUICK_REASONS = {
+  coins: ['完成任务奖励', '违规扣分', '运输失败赔偿', '活动表现优秀', '回合结算'],
+  love:  ['助人为乐', '主动协作', '不公平行为', '体现关怀'],
+  honor: ['任务表现优秀', '诚信加分', '违反规则', '团队领导力'],
+};
+
+const QUICK_DELTAS = {
+  coins: [500, 1000, 5000, 10000, -500, -1000, -5000, -10000],
+  love:  [1, 2, -1, -2],
+  honor: [1, 2, -1, -2],
+  level: [1, -1],
+};
+
+const FIELD_LABEL = { coins: '金币', love: '爱心值', honor: '荣誉值', level: '等级' };
+
+let pendingAdjust = null;
+
+function openModal(country_id, field) {
+  if (!requireMentor()) return;
+  pendingAdjust = { country_id, field };
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const currentVal = numv(country[field]);
+  const label = FIELD_LABEL[field] || field;
+  document.getElementById('modal-preview').innerHTML = `
+    <div class="flex items-center justify-center gap-2 mb-1">
+      <span class="text-2xl">${meta.flag}</span>
+      <span class="display text-base">${escapeHtml(meta.name)}</span>
+      <span class="text-[color:var(--muted)] text-sm">·</span>
+      <span class="text-sm" style="color: var(--muted)">${label}</span>
+    </div>
+    <div class="text-[11px] text-[color:var(--muted)]">当前: <span class="num text-[color:var(--text)]">${fmt(currentVal)}</span> · 导师 <span class="text-[color:var(--text)]">${mentor || '?'}</span></div>
+  `;
+  // quick delta chips
+  const quickDeltas = QUICK_DELTAS[field] || [];
+  document.getElementById('modal-quick-delta').innerHTML = quickDeltas.map(d => {
+    const sign = d > 0 ? '+' : '−';
+    const cls = d > 0 ? 'pos' : 'neg';
+    return `<span class="quick-delta ${cls}" data-delta="${d}">${sign}${fmt(Math.abs(d))}</span>`;
+  }).join('');
+  // quick reason chips
+  document.getElementById('modal-quick').innerHTML = (QUICK_REASONS[field] || []).map(r => `<span class="quick-reason">${escapeHtml(r)}</span>`).join('');
+
+  const deltaEl = document.getElementById('modal-delta');
+  deltaEl.value = '';
+  deltaEl.classList.remove('positive', 'negative');
+  document.getElementById('modal-reason').value = '';
+  document.getElementById('modal-confirm').disabled = true;
+  document.getElementById('modal-confirm').textContent = '确认 · ⌘↵';
+  document.getElementById('adjust-modal').classList.remove('hidden');
+  setTimeout(() => deltaEl.focus(), 50);
+}
+
+function closeAdjustModal() {
+  document.getElementById('adjust-modal').classList.add('hidden');
+  pendingAdjust = null;
+}
+
+function openLevelUpModal(country_id, nextLvl) {
+  openModal(country_id, 'level');
+  // pre-fill delta=+1 and a default reason once the modal is open
+  setTimeout(() => {
+    const deltaEl = document.getElementById('modal-delta');
+    const reasonEl = document.getElementById('modal-reason');
+    if (deltaEl) {
+      deltaEl.value = '1';
+      deltaEl.dispatchEvent(new Event('input'));
+    }
+    if (reasonEl) {
+      reasonEl.value = `升级到 Lv.${nextLvl} (达成全部条件)`;
+      reasonEl.dispatchEvent(new Event('input'));
+      reasonEl.focus();
+      reasonEl.select();
+    }
+  }, 60);
+}
+
+function validateAdjustForm() {
+  const delta = Number(document.getElementById('modal-delta').value);
+  const reason = document.getElementById('modal-reason').value.trim();
+  const ok = isFinite(delta) && delta !== 0 && reason.length > 0;
+  const btn = document.getElementById('modal-confirm');
+  btn.disabled = !ok;
+  if (ok && pendingAdjust) {
+    const sign = delta > 0 ? '+' : '−';
+    const label = FIELD_LABEL[pendingAdjust.field] || pendingAdjust.field;
+    btn.textContent = `确认 ${sign}${fmt(Math.abs(delta))} ${label}`;
+  } else {
+    btn.textContent = '确认 · ⌘↵';
+  }
+}
+
+document.getElementById('modal-delta').addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  e.target.classList.toggle('positive', isFinite(v) && v > 0);
+  e.target.classList.toggle('negative', isFinite(v) && v < 0);
+  validateAdjustForm();
+});
+document.getElementById('modal-quick-delta').addEventListener('click', (e) => {
+  const chip = e.target.closest('.quick-delta');
+  if (!chip) return;
+  const inp = document.getElementById('modal-delta');
+  inp.value = chip.dataset.delta;
+  inp.dispatchEvent(new Event('input'));
+  document.getElementById('modal-reason').focus();
+});
+document.getElementById('modal-reason').addEventListener('input', validateAdjustForm);
+document.getElementById('modal-quick').addEventListener('click', (e) => {
+  const chip = e.target.closest('.quick-reason');
+  if (!chip) return;
+  const input = document.getElementById('modal-reason');
+  input.value = chip.textContent;
+  input.dispatchEvent(new Event('input'));
+  input.focus();
+});
+document.getElementById('modal-confirm').addEventListener('click', async () => {
+  const delta = Number(document.getElementById('modal-delta').value);
+  const reason = document.getElementById('modal-reason').value.trim();
+  if (!isFinite(delta) || delta === 0 || !reason || !pendingAdjust) return;
+  const { country_id, field } = pendingAdjust;
+  const btn = document.getElementById('modal-confirm');
+  btn.disabled = true; btn.textContent = '提交中…';
+  try { await adjust(country_id, field, delta, reason); closeAdjustModal(); }
+  catch (_) {} finally { validateAdjustForm(); }
+});
+document.getElementById('modal-cancel').addEventListener('click', closeAdjustModal);
+document.getElementById('modal-close').addEventListener('click', closeAdjustModal);
+document.getElementById('adjust-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'adjust-modal') closeAdjustModal();
+});
+
+// ==========================================================================
+// Produce modal
+// ==========================================================================
+let pendingProduce = null; // { country_id, product, level, dice }
+let produceLevelFilter = 0;
+
+function openProduceModal(country_id) {
+  if (!requireMentor()) return;
+  pendingProduce = { country_id, product: null, dice: null };
+  produceLevelFilter = 0;
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  document.getElementById('produce-country-title').innerHTML = `${meta.flag} ${escapeHtml(meta.name)} · 制造产品`;
+  document.querySelectorAll('#produce-level-tabs .tab').forEach(t => t.classList.toggle('active', Number(t.dataset.lvl) === 0));
+  showProduceStage('pick');
+  renderRecipeList();
+  document.getElementById('produce-modal').classList.remove('hidden');
+}
+
+function showProduceStage(stage) {
+  document.getElementById('produce-stage-pick').classList.toggle('hidden', stage !== 'pick');
+  document.getElementById('produce-stage-confirm').classList.toggle('hidden', stage !== 'confirm');
+}
+
+function getCountryAndInventory(country_id) {
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const inv = {};
+  latestData.products.filter(p => p.country_id === country_id).forEach(p => {
+    inv[p.name] = (inv[p.name] || 0) + (Number(p.qty) || 0);
+  });
+  return { country, inv };
+}
+
+function renderRecipeList() {
+  if (!pendingProduce) return;
+  const { country_id } = pendingProduce;
+  const { country, inv } = getCountryAndInventory(country_id);
+  const filterLvl = produceLevelFilter;
+
+  // Only show products that have an active purchase order
+  const pos = getActivePOs(country_id);
+  if (!pos.length) {
+    document.getElementById('produce-recipe-list').innerHTML =
+      `<div class="text-center py-8 text-sm" style="color: var(--rust)">⌛ 没有采购单 — 请先到 <span style="color: var(--gold)">🛒 采购</span> 申请采购单后再制造</div>`;
+    return;
+  }
+
+  // Deduplicate by product name (keep first PO id for display)
+  const seen = {};
+  const orders = [];
+  pos.forEach(o => {
+    if (seen[o.product]) return;
+    seen[o.product] = true;
+    if (filterLvl && Number(o.level) !== filterLvl) return;
+    if (RECIPES[o.product] && RECIPES[o.product].country === country_id) {
+      orders.push(o);
+    }
+  });
+  orders.sort((a, b) => Number(a.level) - Number(b.level) || String(a.product).localeCompare(String(b.product)));
+
+  if (!orders.length) {
+    document.getElementById('produce-recipe-list').innerHTML =
+      `<div class="text-center text-[color:var(--muted)] py-8 text-sm">当前过滤下无可用采购单</div>`;
+    return;
+  }
+
+  const html = orders.map(o => {
+    const name = o.product;
+    const r = RECIPES[name];
+    const resChips = Object.entries(r.res).map(([k, v]) => {
+      const have = numv(country[k]);
+      const miss = have < v;
+      return `<span class="cost-chip ${miss ? 'missing' : ''}">${RES_LABEL[k]} ${v}</span>`;
+    }).join('');
+    const semiChips = r.semi.map(s => {
+      const have = inv[s] || 0;
+      const miss = have < 1;
+      return `<span class="cost-chip semi ${miss ? 'missing' : ''}">${escapeHtml(s)} ×1</span>`;
+    }).join('');
+
+    const resOk = Object.entries(r.res).every(([k, v]) => numv(country[k]) >= v);
+    const semiOk = r.semi.every(s => (inv[s] || 0) >= 1);
+    const feasible = resOk && semiOk;
+
+    return `
+      <div class="recipe-row ${feasible ? '' : 'disabled'}" data-product="${escapeHtml(name)}">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="lvl-tag l${r.level}">L${r.level}</span>
+            <span class="text-sm display truncate">📋 ${escapeHtml(name)}</span>
+          </div>
+          <span class="text-[10px] ${feasible ? 'text-[color:var(--emerald)]' : 'text-[color:var(--rose)]'} shrink-0">${feasible ? '✓ 可制造' : '× 资源不足'}</span>
+        </div>
+        <div>${resChips}${semiChips}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('produce-recipe-list').innerHTML = html;
+}
+
+function openProduceConfirm(productName) {
+  if (!pendingProduce) return;
+  const recipe = RECIPES[productName];
+  if (!recipe) return;
+  pendingProduce.product = productName;
+  pendingProduce.dice = null;
+  const meta = COUNTRY_META[pendingProduce.country_id] || { flag: '🏳', name: pendingProduce.country_id };
+  const resStr = Object.entries(recipe.res).map(([k, v]) => `<span class="cost-chip">${RES_LABEL[k]} ${v}</span>`).join('');
+  const semiStr = recipe.semi.map(s => `<span class="cost-chip semi">${escapeHtml(s)} ×1</span>`).join('');
+
+  const po = getActivePOs(pendingProduce.country_id).find(o => o.product === productName);
+
+  document.getElementById('produce-confirm-preview').innerHTML = `
+    <div class="text-3xl mb-1">${meta.flag}</div>
+    <div class="display text-base mb-1">${escapeHtml(meta.name)} · 制造</div>
+    <div class="display text-xl mb-2"><span class="lvl-tag l${recipe.level} mr-2">L${recipe.level}</span>${escapeHtml(productName)}</div>
+    <div class="mt-2">${resStr}${semiStr}</div>
+    ${po ? `<div class="text-[10px] text-[color:var(--rust)] mt-2">📋 将消耗采购单 #${escapeHtml(po.id)}</div>` : ''}
+    <div class="text-[10px] text-[color:var(--muted)] mt-1">操作导师: <span class="text-[color:var(--text)]">${mentor || '?'}</span></div>
+  `;
+  document.querySelectorAll('#dice-buttons .dice-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('produce-reason').value = `制造 ${productName}`;
+  validateProduceForm();
+  showProduceStage('confirm');
+  setTimeout(() => document.getElementById('produce-reason').focus(), 50);
+}
+
+function validateProduceForm() {
+  if (!pendingProduce || !pendingProduce.product) { document.getElementById('produce-confirm').disabled = true; return; }
+  const reasonOk = document.getElementById('produce-reason').value.trim().length > 0;
+  const diceOk = pendingProduce.dice >= 1 && pendingProduce.dice <= 6;
+  document.getElementById('produce-confirm').disabled = !(reasonOk && diceOk);
+}
+
+function closeProduceModal() {
+  document.getElementById('produce-modal').classList.add('hidden');
+  pendingProduce = null;
+}
+
+document.querySelectorAll('.produce-close').forEach(el => el.addEventListener('click', closeProduceModal));
+document.getElementById('produce-cancel').addEventListener('click', closeProduceModal);
+document.getElementById('produce-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'produce-modal') closeProduceModal();
+});
+document.getElementById('produce-back').addEventListener('click', () => {
+  if (!pendingProduce) return;
+  pendingProduce.product = null;
+  showProduceStage('pick');
+  renderRecipeList();
+});
+document.getElementById('produce-level-tabs').addEventListener('click', (e) => {
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  produceLevelFilter = Number(t.dataset.lvl) || 0;
+  document.querySelectorAll('#produce-level-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
+  renderRecipeList();
+});
+document.getElementById('produce-recipe-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.recipe-row');
+  if (!row || row.classList.contains('disabled')) return;
+  openProduceConfirm(row.dataset.product);
+});
+document.getElementById('dice-buttons').addEventListener('click', (e) => {
+  const b = e.target.closest('.dice-btn');
+  if (!b) return;
+  pendingProduce.dice = Number(b.dataset.dice);
+  document.querySelectorAll('#dice-buttons .dice-btn').forEach(x => x.classList.toggle('selected', x === b));
+  validateProduceForm();
+});
+document.getElementById('produce-reason').addEventListener('input', validateProduceForm);
+async function showProduceResult(success, productName, dice) {
+  const panel = document.querySelector('#produce-modal .modal-panel');
+  if (!panel) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'produce-result-overlay';
+  const tagStr = dice ? `🎲 ${dice}` : '';
+  overlay.innerHTML = `
+    <div class="produce-result-icon">${success ? '✅' : '💥'}</div>
+    <div class="produce-result-title ${success ? 'ok' : 'fail'}">${success ? '制造成功！' : '制造失败'}</div>
+    <div class="produce-result-sub">${escapeHtml(productName)}${tagStr ? ' · ' + tagStr : ''}</div>
+    ${!success ? '<div class="produce-result-sub" style="color: var(--rust)">资源已消耗，采购单作废</div>' : ''}
+  `;
+  panel.appendChild(overlay);
+  await new Promise(r => setTimeout(r, 1700));
+  overlay.remove();
+}
+
+document.getElementById('produce-confirm').addEventListener('click', async () => {
+  if (!pendingProduce || !pendingProduce.product) return;
+  const reason = document.getElementById('produce-reason').value.trim();
+  const btn = document.getElementById('produce-confirm');
+  const productName = pendingProduce.product;
+  const dice = pendingProduce.dice;
+  btn.disabled = true; btn.textContent = '提交中…';
+  try {
+    const data = await produce(pendingProduce.country_id, productName, dice, reason);
+    if (data) {
+      await showProduceResult(!!data.success, productName, dice);
+    }
+    closeProduceModal();
+  } catch (_) {
+  } finally {
+    btn.textContent = '确认制造 · ⌘↵';
+    validateProduceForm();
+  }
+});
+
+// ==========================================================================
+// RD (research) modal — pay coins → 20% fail / 80% random prize from sheet pool
+// ==========================================================================
+let drawState = { country_id: null, busy: false };
+
+function prizeIcon(type) {
+  return type === 'coins' ? '💰' : type === 'nofail' ? '🎫' : type === 'res' ? '📦' : '🎁';
+}
+
+function showDrawStage(stage) {
+  ['confirm', 'loading', 'result'].forEach(s => {
+    const el = document.getElementById('draw-' + s);
+    if (el) el.classList.toggle('hidden', s !== stage);
+  });
+}
+
+function renderPrizePool() {
+  const pool = (latestData.rd_prizes || []).filter(p => p && p.type);
+  const wrap = document.getElementById('draw-prize-pool');
+  if (!pool.length) {
+    wrap.innerHTML = `<span class="text-[11px] text-[color:var(--rust)]">⚠️ RDPrizes 表为空</span>`;
+    return;
+  }
+  wrap.innerHTML = pool.map(p => {
+    const icon = prizeIcon(p.type);
+    return `<span class="po-chip" style="background: rgba(245,197,66,.08); border-color: rgba(245,197,66,.30); color: var(--gold);"><span style="font-size:13px">${icon}</span> ${escapeHtml(p.label || (p.type + ' ' + p.value))}</span>`;
+  }).join('');
+}
+
+async function openDrawModal(country_id) {
+  if (!requireMentor()) return;
+  drawState = { country_id, busy: false };
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const coins = numv(country.coins);
+  const cost = Number(getConfig('rd_cost', 500)) || 500;
+  const failRate = Number(getConfig('rd_fail_rate', 0.2));
+  const failPct = isFinite(failRate) ? Math.round(failRate * 100) : 20;
+
+  document.getElementById('draw-title').innerHTML = `🧪 ${escapeHtml(meta.name)} · 研发部投资`;
+  document.getElementById('draw-subtitle').textContent = `导师 ${mentor || '?'} · 投资即扣金币 · 失败不退`;
+  document.getElementById('draw-cost-label').textContent = `投资 ${fmt(cost)} 金币`;
+  document.getElementById('draw-fail-label').textContent = `失败概率 ${failPct}% · 失败时金币不退`;
+  document.getElementById('draw-current-coins').innerHTML = `当前金币 <span class="num text-[color:var(--gold)] font-bold">${fmt(coins)}</span> · 投资后 <span class="num">${fmt(coins - cost)}</span>`;
+  const submitBtn = document.getElementById('draw-submit');
+  if (coins < cost) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = `金币不足 · 需 ${fmt(cost)}`;
+  } else {
+    submitBtn.disabled = false;
+    submitBtn.textContent = `投资 ${fmt(cost)} 金币 · 研发 · ⌘↵`;
+  }
+  renderPrizePool();
+  showDrawStage('confirm');
+  document.getElementById('draw-modal').classList.remove('hidden');
+}
+
+function closeDrawModal() {
+  if (drawState.busy) return;
+  document.getElementById('draw-modal').classList.add('hidden');
+  drawState = { country_id: null, busy: false };
+}
+
+async function submitRD() {
+  if (drawState.busy || !drawState.country_id) return;
+  drawState.busy = true;
+  showDrawStage('loading');
+  try {
+    const params = new URLSearchParams({
+      action: 'rd', country_id: drawState.country_id,
+      reason: '研发部投资',
+      mentor, t: String(Date.now())
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+
+    // brief reveal delay so the spinner is visible
+    await new Promise(r => setTimeout(r, 700));
+
+    const meta = COUNTRY_META[drawState.country_id] || { flag: '🏳', name: drawState.country_id };
+    if (data.success) {
+      const prize = data.prize;
+      document.getElementById('draw-result-emoji').textContent = prizeIcon(prize.type);
+      document.getElementById('draw-result-label').textContent = '研发成功 · ' + prize.label;
+      document.getElementById('draw-result-label').style.color = 'var(--emerald)';
+      document.getElementById('draw-result-detail').innerHTML = `<span class="num">${fmt(prize.before)} → ${fmt(prize.after)}</span> · 花费 ${fmt(data.cost)} 金币`;
+      toast(`🧪 ${meta.flag} ${meta.name} 研发成功: ${prize.label}`, 'ok', 3500);
+    } else {
+      document.getElementById('draw-result-emoji').textContent = '💥';
+      document.getElementById('draw-result-label').textContent = '研发失败';
+      document.getElementById('draw-result-label').style.color = 'var(--rose)';
+      document.getElementById('draw-result-detail').innerHTML = `投入的 <span class="num text-[color:var(--gold)]">${fmt(data.cost)}</span> 金币已沉没 · 余 <span class="num">${fmt(data.new_coins)}</span>`;
+      toast(`💥 ${meta.flag} ${meta.name} 研发失败 · -${fmt(data.cost)} 金币`, 'err', 3500);
+    }
+    showDrawStage('result');
+    fetchData();
+  } catch (err) {
+    toast('研发失败: ' + (err.message || err), 'err', 3500);
+    showDrawStage('confirm');
+  } finally {
+    drawState.busy = false;
+  }
+}
+
+document.getElementById('draw-submit').addEventListener('click', submitRD);
+document.getElementById('draw-close').addEventListener('click', closeDrawModal);
+document.getElementById('draw-cancel-btn').addEventListener('click', closeDrawModal);
+document.getElementById('draw-result-close').addEventListener('click', closeDrawModal);
+document.getElementById('draw-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'draw-modal') closeDrawModal();
+});
+
+// ==========================================================================
+// Sell modal — sell products to bank (fixed) or to another country (negotiated)
+// ==========================================================================
+let sellState = { country_id: null, item: null, qty: 1, dest: 'bank', price: 0, dice: null, useNofail: false };
+
+function openSellModal(country_id) {
+  if (!requireMentor()) return;
+  sellState = { country_id, item: null, qty: 1, dest: 'bank', price: 0, dice: null, useNofail: false };
+  const meta = COUNTRY_META[country_id] || { flag: country_id.toUpperCase(), name: country_id };
+  document.getElementById('sell-country-title').innerHTML = `💸 ${escapeHtml(meta.name)} · 销售`;
+  document.getElementById('sell-subtitle').innerHTML = `从库存选一件产品 · 导师 ${mentor || '?'}`;
+  showSellStage('pick');
+  renderSellList();
+  document.getElementById('sell-modal').classList.remove('hidden');
+}
+
+function closeSellModal() {
+  document.getElementById('sell-modal').classList.add('hidden');
+  sellState = { country_id: null, item: null, qty: 1, dest: 'bank', price: 0, dice: null, useNofail: false };
+}
+
+function showSellStage(stage) {
+  document.getElementById('sell-stage-pick').classList.toggle('hidden', stage !== 'pick');
+  document.getElementById('sell-stage-confirm').classList.toggle('hidden', stage !== 'confirm');
+}
+
+function priceLookup() {
+  const lookup = {};
+  (latestData.prices || []).forEach(p => {
+    lookup[`${p.item_type}:${p.item_key}`] = {
+      price: numv(p.price),
+      sell_price: numv(p.sell_price),
+      unit_size: numv(p.unit_size) || 1,
+    };
+  });
+  return lookup;
+}
+
+function renderSellList() {
+  const list = document.getElementById('sell-item-list');
+  const country_id = sellState.country_id;
+  const products = (latestData.products || []).filter(p => p.country_id === country_id && numv(p.qty) > 0);
+  if (!products.length) {
+    list.innerHTML = `<div class="text-center text-[color:var(--muted)] py-8 text-sm">没有可售卖的产品 — 先制造或国际收购</div>`;
+    return;
+  }
+  const lookup = priceLookup();
+  const sorted = products.slice().sort((a, b) => (b.level - a.level) || a.name.localeCompare(b.name));
+  list.innerHTML = sorted.map(p => {
+    const lvl = Number(p.level);
+    const cat = 'l' + lvl;
+    const info = lookup[`${cat}:${p.name}`] || {};
+    const bankPrice = numv(info.sell_price);
+    return `
+      <div class="buy-item" data-item-type="${cat}" data-item-key="${escapeHtml(p.name)}" data-have="${numv(p.qty)}" data-bank-price="${bankPrice}" data-buy-price="${info.price || 0}">
+        <div class="buy-item-icon"><span class="lvl-tag l${lvl}">L${lvl}</span></div>
+        <div class="buy-item-name">${escapeHtml(p.name)}</div>
+        <div class="text-[11px] text-[color:var(--muted)] num shrink-0">库存 <span class="text-[color:var(--text)] font-bold">${fmt(p.qty)}</span></div>
+        <div class="buy-item-price">${fmt(bankPrice)} 金币<span class="unit">/个 (银行)</span></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openSellConfirm(rowEl) {
+  const country_id = sellState.country_id;
+  sellState.item = {
+    type: rowEl.dataset.itemType,
+    key: rowEl.dataset.itemKey,
+    have: Number(rowEl.dataset.have) || 0,
+    bank_price: Number(rowEl.dataset.bankPrice) || 0,
+    buy_price: Number(rowEl.dataset.buyPrice) || 0,
+  };
+  sellState.qty = 1;
+  sellState.dest = 'bank';
+  sellState.price = sellState.item.bank_price;
+
+  const lvlNum = sellState.item.type.replace('l', '');
+  document.getElementById('sell-confirm-preview').innerHTML = `
+    <div class="text-3xl mb-1">💸</div>
+    <div class="display text-base mb-1">销售产品</div>
+    <div class="display text-xl"><span class="lvl-tag l${lvlNum} mr-2">L${lvlNum}</span>${escapeHtml(sellState.item.key)}</div>
+    <div class="text-[11px] text-[color:var(--muted)] mt-2">库存 <span class="num text-[color:var(--text)] font-bold">${fmt(sellState.item.have)}</span> · 银行收购价 <span class="num text-[color:var(--gold)]">${fmt(sellState.item.bank_price)}</span> · 原始售价 ${fmt(sellState.item.buy_price)}</div>
+  `;
+
+  // build destination tabs (bank + other countries)
+  const otherCountries = COUNTRY_ORDER.filter(id => id !== country_id);
+  document.getElementById('sell-dest-tabs').innerHTML = `
+    <div class="dest-tab active" data-dest="bank">
+      <span class="icon">🏦</span><span class="label">银行</span>
+    </div>
+    ${otherCountries.map(id => `
+      <div class="dest-tab" data-dest="${id}">
+        <span class="icon">${escapeHtml((COUNTRY_META[id] || {flag: id.toUpperCase()}).flag)}</span>
+        <span class="label">${escapeHtml((COUNTRY_META[id] || {name: id}).name)}</span>
+      </div>
+    `).join('')}
+  `;
+
+  document.getElementById('sell-stock-info').textContent = `(最多 ${sellState.item.have})`;
+  document.getElementById('sell-reason').value = `销售 ${sellState.item.key}`;
+
+  // Reset transport dice + nofail
+  sellState.dice = null;
+  sellState.useNofail = false;
+  const country = latestData.countries.find(c => c.country_id === sellState.country_id) || {};
+  const nofailHave = numv(country.no_fail_cards);
+  const nofailSection = document.getElementById('sell-nofail-section');
+  nofailSection.classList.toggle('hidden', nofailHave < 1);
+  document.getElementById('sell-nofail-toggle').classList.remove('on');
+  document.getElementById('sell-nofail-info').textContent = `跳过骰子, 自动成功运输 (余 ×${nofailHave})`;
+  document.getElementById('sell-dice-section').classList.remove('hidden');
+  document.querySelectorAll('#sell-dice-buttons .ship-dice-btn').forEach(b => b.classList.remove('active'));
+
+  updateSellPriceUI();
+  updateSellQtyUI();
+  showSellStage('confirm');
+  setTimeout(() => document.getElementById('sell-reason').focus(), 50);
+}
+
+function updateSellPriceUI() {
+  const priceInput = document.getElementById('sell-price');
+  const hint = document.getElementById('sell-price-hint');
+  if (sellState.dest === 'bank') {
+    priceInput.value = sellState.item.bank_price;
+    priceInput.readOnly = true;
+    sellState.price = sellState.item.bank_price;
+    hint.textContent = '(银行价 · 导师在 Google Sheet 设定)';
+  } else {
+    priceInput.readOnly = false;
+    if (!sellState.price || sellState.price === sellState.item.bank_price) {
+      // default to bank price as starting suggestion, mentor can change
+      sellState.price = sellState.item.bank_price;
+      priceInput.value = sellState.price;
+    }
+    hint.textContent = '(国家协商价 · 可自由输入)';
+  }
+}
+
+function updateSellQtyUI() {
+  document.getElementById('sell-qty-val').textContent = `×${sellState.qty}`;
+  document.getElementById('sell-qty-minus').disabled = sellState.qty <= 1;
+  document.getElementById('sell-qty-plus').disabled = sellState.qty >= sellState.item.have;
+  updateSellSummary();
+}
+
+function updateSellSummary() {
+  if (!sellState.item) return;
+  const total = sellState.qty * sellState.price;
+  const seller = latestData.countries.find(c => c.country_id === sellState.country_id) || {};
+  const sellerCoinsBefore = numv(seller.coins);
+  const sellerCoinsAfter = sellerCoinsBefore + total;
+  let buyerHtml = '';
+  if (sellState.dest !== 'bank') {
+    const buyer = latestData.countries.find(c => c.country_id === sellState.dest) || {};
+    const buyerMeta = COUNTRY_META[sellState.dest] || { flag: sellState.dest, name: sellState.dest };
+    const buyerCoinsBefore = numv(buyer.coins);
+    const buyerCoinsAfter = buyerCoinsBefore - total;
+    const buyerOk = buyerCoinsAfter >= 0;
+    buyerHtml = `
+      <div class="buy-summary-row">
+        <span style="color: var(--muted)">${escapeHtml(buyerMeta.flag)} ${escapeHtml(buyerMeta.name)} 金币</span>
+        <span class="num ${buyerOk ? 'buy-summary-after' : 'buy-summary-after bad'}">${fmt(buyerCoinsBefore)} → ${fmt(buyerCoinsAfter)}</span>
+      </div>
+      ${!buyerOk ? '<div class="text-[11px] text-[color:var(--rust)] mt-2 text-center">⚠️ 买方金币不足</div>' : ''}
+    `;
+  }
+  document.getElementById('sell-summary').innerHTML = `
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">销售</span>
+      <span>${escapeHtml(sellState.item.key)} ×${sellState.qty}</span>
+    </div>
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">总收入</span>
+      <span class="num buy-summary-total">${fmt(total)} 金币</span>
+    </div>
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">${escapeHtml((COUNTRY_META[sellState.country_id] || {flag:'',name:''}).name)} 金币</span>
+      <span class="num buy-summary-after">${fmt(sellerCoinsBefore)} → ${fmt(sellerCoinsAfter)}</span>
+    </div>
+    ${buyerHtml}
+  `;
+  validateSellForm();
+}
+
+function validateSellForm() {
+  const reason = document.getElementById('sell-reason').value.trim();
+  const priceOk = isFinite(sellState.price) && sellState.price >= 0;
+  let buyerOk = true;
+  if (sellState.dest !== 'bank') {
+    const buyer = latestData.countries.find(c => c.country_id === sellState.dest) || {};
+    buyerOk = numv(buyer.coins) >= (sellState.qty * sellState.price);
+  }
+  const stockOk = sellState.item && sellState.qty <= sellState.item.have && sellState.qty >= 1;
+  const diceOk = sellState.useNofail || (sellState.dice >= 1 && sellState.dice <= 6);
+  const ok = reason && priceOk && stockOk && buyerOk && diceOk;
+  const btn = document.getElementById('sell-confirm');
+  btn.disabled = !ok;
+  if (ok) {
+    const tag = sellState.useNofail ? '🎫 免失败' : `🎲${sellState.dice}`;
+    btn.textContent = `确认销售 · ${tag} · +${fmt(sellState.qty * sellState.price)}`;
+  } else btn.textContent = '确认销售 · ⌘↵';
+}
+
+document.getElementById('sell-item-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.buy-item');
+  if (!row) return;
+  openSellConfirm(row);
+});
+document.getElementById('sell-dest-tabs').addEventListener('click', (e) => {
+  const t = e.target.closest('.dest-tab');
+  if (!t) return;
+  sellState.dest = t.dataset.dest;
+  document.querySelectorAll('#sell-dest-tabs .dest-tab').forEach(x => x.classList.toggle('active', x === t));
+  // reset price when switching dest
+  sellState.price = sellState.item.bank_price;
+  updateSellPriceUI();
+  updateSellSummary();
+});
+document.getElementById('sell-price').addEventListener('input', (e) => {
+  sellState.price = Number(e.target.value);
+  updateSellSummary();
+});
+document.getElementById('sell-qty-minus').addEventListener('click', () => {
+  if (sellState.qty > 1) { sellState.qty -= 1; updateSellQtyUI(); }
+});
+document.getElementById('sell-qty-plus').addEventListener('click', () => {
+  if (sellState.qty < sellState.item.have) { sellState.qty += 1; updateSellQtyUI(); }
+});
+document.getElementById('sell-reason').addEventListener('input', validateSellForm);
+document.getElementById('sell-back').addEventListener('click', () => {
+  sellState.item = null;
+  showSellStage('pick');
+});
+document.querySelectorAll('.sell-close').forEach(el => el.addEventListener('click', closeSellModal));
+document.getElementById('sell-cancel').addEventListener('click', closeSellModal);
+document.getElementById('sell-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'sell-modal') closeSellModal();
+});
+// Transport dice picker
+document.getElementById('sell-dice-buttons').addEventListener('click', (e) => {
+  const b = e.target.closest('.ship-dice-btn');
+  if (!b || b.disabled) return;
+  sellState.dice = Number(b.dataset.sdice);
+  document.querySelectorAll('#sell-dice-buttons .ship-dice-btn').forEach(x => x.classList.toggle('active', x === b));
+  validateSellForm();
+});
+
+// No-fail toggle
+document.getElementById('sell-nofail-toggle').addEventListener('click', () => {
+  sellState.useNofail = !sellState.useNofail;
+  const tog = document.getElementById('sell-nofail-toggle');
+  tog.classList.toggle('on', sellState.useNofail);
+  // Hide dice section when using nofail
+  document.getElementById('sell-dice-section').classList.toggle('hidden', sellState.useNofail);
+  if (sellState.useNofail) {
+    sellState.dice = null;
+    document.querySelectorAll('#sell-dice-buttons .ship-dice-btn').forEach(x => x.classList.remove('active'));
+  }
+  validateSellForm();
+});
+
+document.getElementById('sell-confirm').addEventListener('click', async () => {
+  if (!sellState.item || !sellState.country_id) return;
+  const reason = document.getElementById('sell-reason').value.trim();
+  const btn = document.getElementById('sell-confirm');
+  const useNofail = sellState.useNofail;
+  const dice = sellState.dice;
+  btn.disabled = true; btn.textContent = '提交中…';
+  try {
+    const data = await sell(sellState.country_id, sellState.item.type, sellState.item.key, sellState.qty, sellState.dest, sellState.price, reason, dice, useNofail);
+    const meta = COUNTRY_META[sellState.country_id] || { flag: '🏳', name: sellState.country_id };
+    const dest = sellState.dest === 'bank' ? '🏦 银行' : (COUNTRY_META[sellState.dest] || {}).name || sellState.dest;
+    const tag = data.nofail_used ? '🎫' : `🎲${data.dice}`;
+    if (data.ship_success) {
+      toast(`💸 ${meta.flag} ${meta.name} → ${dest} · ${sellState.item.key} ×${sellState.qty} ${tag} · +${fmt(data.total_coins)} 金币`, 'ok', 3400);
+    } else {
+      toast(`✗ ${meta.flag} ${meta.name} 运输失败 · ${sellState.item.key} ×${sellState.qty} ${tag} · 产品损失`, 'err', 3800);
+    }
+    fetchData();
+    closeSellModal();
+  } catch (err) {
+    toast('销售失败: ' + (err.message || err), 'err', 3500);
+  } finally {
+    validateSellForm();
+  }
+});
+
+// ==========================================================================
+// Asset breakdown modal
+// ==========================================================================
+function openAssetModal(country_id) {
+  const meta = COUNTRY_META[country_id] || { flag: country_id.toUpperCase(), name: country_id };
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const products = latestData.products.filter(p => p.country_id === country_id);
+  const prices = latestData.prices || [];
+  // Asset modal uses asset_value (估值). 0 is respected (means "doesn't count").
+  // Only blank/missing falls back to price.
+  const lookup = {};
+  prices.forEach(p => {
+    const hasAV = p.asset_value !== '' && p.asset_value != null && isFinite(Number(p.asset_value));
+    lookup[`${p.item_type}:${p.item_key}`] = {
+      price: hasAV ? Number(p.asset_value) : numv(p.price),
+      unit_size: numv(p.unit_size) || 1,
+    };
+  });
+
+  const coins = numv(country.coins);
+  let total = coins;
+
+  // Resources
+  let resTotal = 0;
+  const resRows = RES.map(r => {
+    const units = numv(country[r.key]);
+    const info = lookup['resource:' + r.key];
+    const unitSize = info ? info.unit_size : 100;
+    const price = info ? info.price : 0;
+    const sub = unitSize > 0 ? Math.round((units / unitSize) * price) : 0;
+    resTotal += sub;
+    if (units === 0) return '';
+    return `
+      <div class="row">
+        <div class="name">${r.icon} ${escapeHtml(r.label)}</div>
+        <div class="qty">${fmt(units)} 单位</div>
+        <div class="x">× ${fmt(price)}/${fmt(unitSize)}</div>
+        <div class="sub">${fmt(sub)}</div>
+      </div>
+    `;
+  }).filter(Boolean).join('');
+  total += resTotal;
+
+  // Products grouped by level
+  let prodTotal = 0;
+  const byLevel = { 1: [], 2: [], 3: [], 4: [] };
+  products.forEach(p => {
+    const qty = numv(p.qty);
+    if (qty <= 0) return;
+    const lvl = Number(p.level);
+    if (!byLevel[lvl]) return;
+    const cat = 'l' + lvl;
+    const info = lookup[cat + ':' + p.name];
+    const price = info ? info.price : 0;
+    const sub = qty * price;
+    prodTotal += sub;
+    byLevel[lvl].push({ name: p.name, qty, price, sub });
+  });
+
+  let prodHtml = '';
+  [1, 2, 3, 4].forEach(lvl => {
+    const rows = byLevel[lvl];
+    if (!rows.length) return;
+    const tag = `<span class="lvl-tag l${lvl}">L${lvl}</span>`;
+    prodHtml += rows.map(r => `
+      <div class="row">
+        <div class="name">${tag} ${escapeHtml(r.name)}</div>
+        <div class="qty">×${fmt(r.qty)}</div>
+        <div class="x">× ${fmt(r.price)}</div>
+        <div class="sub">${fmt(r.sub)}</div>
+      </div>
+    `).join('');
+  });
+  total += prodTotal;
+  // total here = coins + resources + products (the "base" before love/honor adjustments)
+  const base = total;
+  const loveMult = getLoveMultiplier(country.love);
+  const honorCoin = Number(getConfig('honor_coin', 1000)) || 0;
+  const honorVal = numv(country.honor);
+  const honorBonus = honorVal * honorCoin;
+  const afterLove = Math.round(base * loveMult);
+  const grand = afterLove + honorBonus;
+
+  const body = `
+    <div class="row" style="padding-top: 4px;">
+      <div class="name">💰 金币</div>
+      <div class="qty"></div>
+      <div class="x"></div>
+      <div class="sub">${fmt(coins)}</div>
+    </div>
+
+    <div class="group-header">🛢 资源估值</div>
+    ${resRows || '<div class="text-[12px] text-[color:var(--muted)] py-1">无资源 (估值 0)</div>'}
+    <div class="asset-section-total"><span>资源小计</span><span class="v num">${fmt(resTotal)}</span></div>
+
+    <div class="group-header">🏭 产品估值 (L1/L2/L3/L4)</div>
+    ${prodHtml || '<div class="text-[12px] text-[color:var(--muted)] py-1">无产品</div>'}
+    <div class="asset-section-total"><span>产品小计</span><span class="v num">${fmt(prodTotal)}</span></div>
+
+    <div class="group-header">📐 倍数与奖金</div>
+    <div class="row">
+      <div class="name">基数 (金币 + 资源 + 产品)</div>
+      <div class="qty"></div>
+      <div class="x"></div>
+      <div class="sub">${fmt(base)}</div>
+    </div>
+    <div class="row">
+      <div class="name">❤️ 爱心 ${fmt(numv(country.love))} → 倍数</div>
+      <div class="qty"></div>
+      <div class="x" style="color: var(--rose)">× ${loveMult.toFixed(2)}</div>
+      <div class="sub">${fmt(afterLove)}</div>
+    </div>
+    <div class="row">
+      <div class="name">🏆 荣誉 ${fmt(honorVal)} × ${fmt(honorCoin)} 金币/点</div>
+      <div class="qty"></div>
+      <div class="x"></div>
+      <div class="sub" style="color: var(--emerald)">+${fmt(honorBonus)}</div>
+    </div>
+  `;
+
+  document.getElementById('asset-title').innerHTML = `${escapeHtml(meta.flag)} ${escapeHtml(meta.name)} · 资产明细`;
+  const sub = document.getElementById('asset-subtitle');
+  if (sub) sub.textContent = `(金币 + 产品估值) × 爱心倍数 + 荣誉值 × 荣誉金额`;
+  document.getElementById('asset-body').innerHTML = body;
+  document.getElementById('asset-grand-total').textContent = fmt(grand);
+  document.getElementById('asset-modal').classList.remove('hidden');
+}
+
+function closeAssetModal() {
+  document.getElementById('asset-modal').classList.add('hidden');
+}
+
+document.getElementById('asset-close').addEventListener('click', closeAssetModal);
+document.getElementById('asset-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'asset-modal') closeAssetModal();
+});
+
+// ==========================================================================
+// Buy modal — purchase resources / L1 / L2 from the buying station
+// ==========================================================================
+let buyState = { country_id: null, cat: 'resource', item: null, qty: 1 };
+
+const RES_ICON = { water:'💧', oil:'🛢', wood:'🪵', metal:'⚙️', electricity:'⚡', chips:'💎' };
+const RES_LABEL_ZH = { water:'水', oil:'石油', wood:'木材', metal:'金属', electricity:'电力', chips:'晶片' };
+
+function openBuyModal(country_id) {
+  if (!requireMentor()) return;
+  buyState = { country_id, cat: 'resource', item: null, qty: 1 };
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  document.getElementById('buy-country-title').innerHTML = `🛒 ${escapeHtml(meta.name)} · 银行采购`;
+  document.getElementById('buy-coins-info').innerHTML = `当前金币 <span class="num text-[color:var(--gold)] font-bold">${fmt(country.coins)}</span> · 导师 ${mentor || '?'}`;
+  document.querySelectorAll('#buy-cat-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.cat === 'resource'));
+  showBuyStage('pick');
+  renderBuyList();
+  document.getElementById('buy-modal').classList.remove('hidden');
+}
+
+// ===== Helpers for sheet-driven config / POs =====
+function getConfig(key, fallback) {
+  const cfg = (latestData.config || []).find(c => String(c.key) === key);
+  if (!cfg || cfg.value === '' || cfg.value == null) return fallback;
+  const n = Number(cfg.value);
+  return isFinite(n) ? n : (cfg.value);
+}
+function getActivePOs(country_id) {
+  const target = String(country_id || '').trim().toLowerCase();
+  return (latestData.purchase_orders || []).filter(o => {
+    const cid = String(o.country_id || '').trim().toLowerCase();
+    const status = String(o.status || '').trim().toLowerCase();
+    return cid === target && status === 'active';
+  });
+}
+
+// ===== Reset modal (two-step) =====
+function openResetModal() {
+  if (!requireMentor()) return;
+  document.getElementById('reset-step1').classList.remove('hidden');
+  document.getElementById('reset-step2').classList.add('hidden');
+  document.getElementById('reset-token').value = '';
+  document.getElementById('reset-confirm').disabled = true;
+  document.getElementById('reset-modal').classList.remove('hidden');
+}
+function closeResetModal() {
+  document.getElementById('reset-modal').classList.add('hidden');
+}
+async function submitReset() {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); return; }
+  if (!requireMentor()) return;
+  const btn = document.getElementById('reset-confirm');
+  btn.disabled = true; btn.textContent = '重置中…';
+  try {
+    const params = new URLSearchParams({
+      action: 'reset', confirm: 'RESET',
+      mentor, t: String(Date.now())
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    toast(`🔄 重置完成 · ${data.reset_countries.length} 个国家回到初始状态`, 'ok', 4000);
+    closeResetModal();
+    await fetchData();
+  } catch (err) {
+    toast('重置失败: ' + (err.message || err), 'err', 4000);
+    btn.disabled = false; btn.textContent = '确认重置 ⚠';
+  }
+}
+document.getElementById('reset-btn').addEventListener('click', openResetModal);
+document.getElementById('reset-close').addEventListener('click', closeResetModal);
+document.getElementById('reset-cancel-1').addEventListener('click', closeResetModal);
+document.getElementById('reset-cancel-2').addEventListener('click', closeResetModal);
+document.getElementById('reset-next').addEventListener('click', () => {
+  document.getElementById('reset-step1').classList.add('hidden');
+  document.getElementById('reset-step2').classList.remove('hidden');
+  setTimeout(() => document.getElementById('reset-token').focus(), 50);
+});
+document.getElementById('reset-token').addEventListener('input', (e) => {
+  document.getElementById('reset-confirm').disabled = (e.target.value !== 'RESET');
+});
+document.getElementById('reset-confirm').addEventListener('click', submitReset);
+document.getElementById('reset-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'reset-modal') closeResetModal();
+});
+
+// ===== Purchase Center modal (standalone) =====
+let purchaseState = { country_id: null, busy: false };
+
+function openPurchaseModal(country_id) {
+  if (!requireMentor()) return;
+  purchaseState = { country_id, busy: false };
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  document.getElementById('purchase-title').innerHTML = `📋 ${escapeHtml(meta.name)} · 采购中心`;
+  document.getElementById('purchase-subtitle').textContent = `申请采购单 · 有单才能生产 · 导师 ${mentor || '?'}`;
+  refreshPurchaseModal();
+  document.getElementById('purchase-modal').classList.remove('hidden');
+}
+
+function closePurchaseModal() {
+  if (purchaseState.busy) return;
+  document.getElementById('purchase-modal').classList.add('hidden');
+  purchaseState = { country_id: null, busy: false };
+}
+
+function refreshPurchaseModal() {
+  const country_id = purchaseState.country_id;
+  if (!country_id) return;
+  const cost  = Number(getConfig('purchase_cost',  100)) || 100;
+  const limit = Number(getConfig('purchase_limit', 2))   || 2;
+  const active = getActivePOs(country_id);
+  const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const coins = numv(country.coins);
+  const canPay = coins >= cost;
+  const atLimit = active.length >= limit;
+
+  document.getElementById('pcm-cost').textContent = fmt(cost);
+  document.getElementById('pcm-limit').textContent = fmt(limit);
+  const status = document.getElementById('pcm-status');
+  status.innerHTML = ` · 持单 ${active.length}/${limit} · 金币 <span class="num text-[color:var(--gold)]">${fmt(coins)}</span>`
+    + (atLimit ? ' · <span style="color:var(--rose)">已达上限</span>' : (!canPay ? ' · <span style="color:var(--rose)">金币不足</span>' : ''));
+  document.querySelectorAll('#pcm-lv-row .pc-lv-btn').forEach(b => {
+    b.disabled = atLimit || !canPay || purchaseState.busy;
+    b.textContent = 'L' + b.dataset.pcmLv;
+  });
+
+  // Active orders list
+  const list = document.getElementById('pcm-active-list');
+  if (!active.length) {
+    list.innerHTML = `<div class="po-empty-hint" style="text-align:center; padding:10px;">尚无采购单</div>`;
+  } else {
+    list.innerHTML = `<div class="po-row">${active.map(o => `<span class="po-chip"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}</span>`).join('')}</div>`;
+  }
+}
+
+async function purchaseApply(country_id, level) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); return; }
+  if (!requireMentor()) return;
+  try {
+    const params = new URLSearchParams({
+      action: 'purchase_apply', country_id, level: String(level),
+      reason: `申请 L${level} 采购单`,
+      mentor, t: String(Date.now())
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+    toast(`📋 ${meta.flag} ${meta.name} · 采购单 L${level}: ${data.po.product} (持单 ${data.active_count}/${data.limit})`, 'ok', 3400);
+    await fetchData();
+    if (purchaseState.country_id === country_id) refreshPurchaseModal();
+  } catch (err) {
+    toast('申请失败: ' + (err.message || err), 'err', 3500);
+  }
+}
+
+document.getElementById('purchase-close').addEventListener('click', closePurchaseModal);
+document.getElementById('purchase-cancel').addEventListener('click', closePurchaseModal);
+document.getElementById('purchase-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'purchase-modal') closePurchaseModal();
+});
+document.getElementById('pcm-lv-row').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.pc-lv-btn');
+  if (!btn || btn.disabled || !purchaseState.country_id) return;
+  const lvl = Number(btn.dataset.pcmLv);
+  if (!lvl) return;
+  purchaseState.busy = true;
+  document.querySelectorAll('#pcm-lv-row .pc-lv-btn').forEach(b => b.disabled = true);
+  btn.textContent = '申请中…';
+  try {
+    await purchaseApply(purchaseState.country_id, lvl);
+  } finally {
+    purchaseState.busy = false;
+    refreshPurchaseModal();
+  }
+});
+
+function closeBuyModal() {
+  document.getElementById('buy-modal').classList.add('hidden');
+  buyState = { country_id: null, cat: 'resource', item: null, qty: 1 };
+}
+
+function showBuyStage(stage) {
+  document.getElementById('buy-stage-pick').classList.toggle('hidden', stage !== 'pick');
+  document.getElementById('buy-stage-confirm').classList.toggle('hidden', stage !== 'confirm');
+}
+
+function getPricesByCat(cat, country_id) {
+  return (latestData.prices || []).filter(p => {
+    if (String(p.item_type) !== cat) return false;
+    if (cat === 'l1' || cat === 'l2') {
+      const recipe = RECIPES[p.item_key];
+      return recipe && recipe.country === country_id;
+    }
+    return true; // resources are universal
+  });
+}
+
+/** Resolve buy price for a price row given a country (JP gets price_jp override on resources). */
+function resolveBuyPrice(p, country_id) {
+  const base = numv(p.price);
+  if (country_id === 'jp' && p.item_type === 'resource') {
+    const jp = numv(p.price_jp);
+    if (jp > 0) return jp;
+  }
+  return base;
+}
+
+function renderBuyList() {
+  const list = document.getElementById('buy-item-list');
+  const items = getPricesByCat(buyState.cat, buyState.country_id);
+  if (!items.length) {
+    list.innerHTML = `<div class="text-center text-[color:var(--muted)] py-8 text-sm">无价格数据 — 请运行 Apps Script 的 <code>migrate()</code> 初始化 Prices 表</div>`;
+    return;
+  }
+  list.innerHTML = items.map(p => {
+    const isRes = p.item_type === 'resource';
+    const icon = isRes ? (RES_ICON[p.item_key] || '📦') : (p.item_type === 'l1' ? '🔧' : '⚙️');
+    const name = isRes ? (RES_LABEL_ZH[p.item_key] || p.item_key) : p.item_key;
+    const unitTxt = isRes ? `/${p.unit_size}单位` : '/个';
+    const price = resolveBuyPrice(p, buyState.country_id);
+    const jpFlag = (buyState.country_id === 'jp' && isRes && numv(p.price_jp) > 0 && numv(p.price_jp) !== numv(p.price))
+      ? `<span class="text-[10px] text-[color:var(--rose)] ml-1">JP</span>` : '';
+    return `
+      <div class="buy-item" data-item-type="${escapeHtml(p.item_type)}" data-item-key="${escapeHtml(p.item_key)}" data-unit-size="${p.unit_size}" data-price="${price}" data-display-name="${escapeHtml(name)}">
+        <div class="buy-item-icon">${icon}</div>
+        <div class="buy-item-name">${escapeHtml(name)}</div>
+        <div class="buy-item-price">${fmt(price)} 金币<span class="unit">${unitTxt}</span>${jpFlag}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openBuyConfirm(itemEl) {
+  buyState.item = {
+    type: itemEl.dataset.itemType,
+    key: itemEl.dataset.itemKey,
+    unit_size: Number(itemEl.dataset.unitSize) || 1,
+    price: Number(itemEl.dataset.price) || 0,
+    name: itemEl.dataset.displayName,
+  };
+  buyState.qty = 1;
+  // render confirm preview
+  const isRes = buyState.item.type === 'resource';
+  const iconBig = isRes ? (RES_ICON[buyState.item.key] || '📦') : (buyState.item.type === 'l1' ? '🔧' : '⚙️');
+  document.getElementById('buy-confirm-preview').innerHTML = `
+    <div class="text-4xl mb-1">${iconBig}</div>
+    <div class="display text-xl">${escapeHtml(buyState.item.name)}</div>
+    <div class="text-[12px] text-[color:var(--muted)] mt-1">单价 <span class="text-[color:var(--gold)] num font-bold">${fmt(buyState.item.price)}</span> 金币 ${isRes ? `每 ${buyState.item.unit_size} 单位` : '每个'}</div>
+  `;
+  // quick qty chips
+  const quickQtys = isRes ? [1, 2, 3, 5, 10] : [1, 2, 3, 5];
+  document.getElementById('buy-quick-qty').innerHTML = quickQtys.map(q => {
+    const label = isRes ? `${q * buyState.item.unit_size}` : `×${q}`;
+    return `<span class="quick-qty" data-qty="${q}">${label}</span>`;
+  }).join('');
+  document.getElementById('buy-reason').value = isRes ? `补充${buyState.item.name}` : `采购 ${buyState.item.name}`;
+  updateBuyQtyUI();
+  showBuyStage('confirm');
+  setTimeout(() => document.getElementById('buy-reason').focus(), 50);
+}
+
+function updateBuyQtyUI() {
+  if (!buyState.item) return;
+  const isRes = buyState.item.type === 'resource';
+  const displayQty = isRes ? (buyState.qty * buyState.item.unit_size) : buyState.qty;
+  document.getElementById('buy-qty-val').textContent = isRes ? `${displayQty}单位` : `×${displayQty}`;
+  document.getElementById('buy-qty-minus').disabled = buyState.qty <= 1;
+  updateBuySummary();
+}
+
+function updateBuySummary() {
+  if (!buyState.item || !buyState.country_id) return;
+  const country = latestData.countries.find(c => c.country_id === buyState.country_id) || {};
+  const curCoins = numv(country.coins);
+  const totalCost = buyState.qty * buyState.item.price;
+  const after = curCoins - totalCost;
+  const isRes = buyState.item.type === 'resource';
+  const totalUnits = buyState.qty * buyState.item.unit_size;
+  const enough = after >= 0;
+  const acquireText = isRes ? `${totalUnits} 单位 ${escapeHtml(buyState.item.name)}` : `${escapeHtml(buyState.item.name)} ×${buyState.qty}`;
+  document.getElementById('buy-summary').innerHTML = `
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">获得</span>
+      <span>${acquireText}</span>
+    </div>
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">总价</span>
+      <span class="num buy-summary-total">${fmt(totalCost)} 金币</span>
+    </div>
+    <div class="buy-summary-row">
+      <span style="color: var(--muted)">金币余额</span>
+      <span class="num buy-summary-after ${enough ? '' : 'bad'}">${fmt(curCoins)} → ${fmt(after)}</span>
+    </div>
+    ${enough ? '' : '<div class="text-[11px] text-[color:var(--rust)] mt-2 text-center">⚠️ 金币不足</div>'}
+  `;
+  validateBuyForm();
+}
+
+function validateBuyForm() {
+  if (!buyState.item || !buyState.country_id) { document.getElementById('buy-confirm').disabled = true; return; }
+  const country = latestData.countries.find(c => c.country_id === buyState.country_id) || {};
+  const curCoins = numv(country.coins);
+  const totalCost = buyState.qty * buyState.item.price;
+  const enough = curCoins >= totalCost;
+  const reason = document.getElementById('buy-reason').value.trim();
+  const ok = enough && reason && buyState.qty >= 1;
+  const btn = document.getElementById('buy-confirm');
+  btn.disabled = !ok;
+  if (ok) btn.textContent = `确认采购 · ${fmt(totalCost)} 金币`;
+  else btn.textContent = '确认采购 · ⌘↵';
+}
+
+document.getElementById('buy-cat-tabs').addEventListener('click', (e) => {
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  buyState.cat = t.dataset.cat;
+  document.querySelectorAll('#buy-cat-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
+  renderBuyList();
+});
+
+document.getElementById('buy-item-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.buy-item');
+  if (!row || row.classList.contains('disabled')) return;
+  openBuyConfirm(row);
+});
+
+
+document.getElementById('buy-qty-minus').addEventListener('click', () => {
+  if (buyState.qty > 1) { buyState.qty -= 1; updateBuyQtyUI(); }
+});
+document.getElementById('buy-qty-plus').addEventListener('click', () => {
+  buyState.qty += 1; updateBuyQtyUI();
+});
+document.getElementById('buy-quick-qty').addEventListener('click', (e) => {
+  const chip = e.target.closest('.quick-qty');
+  if (!chip) return;
+  buyState.qty = Number(chip.dataset.qty) || 1;
+  updateBuyQtyUI();
+});
+document.getElementById('buy-reason').addEventListener('input', validateBuyForm);
+
+document.getElementById('buy-back').addEventListener('click', () => {
+  buyState.item = null;
+  showBuyStage('pick');
+});
+
+document.querySelectorAll('.buy-close').forEach(el => el.addEventListener('click', closeBuyModal));
+document.getElementById('buy-cancel').addEventListener('click', closeBuyModal);
+document.getElementById('buy-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'buy-modal') closeBuyModal();
+});
+
+document.getElementById('buy-confirm').addEventListener('click', async () => {
+  if (!buyState.item || !buyState.country_id) return;
+  const reason = document.getElementById('buy-reason').value.trim();
+  const btn = document.getElementById('buy-confirm');
+  btn.disabled = true; btn.textContent = '提交中…';
+  try {
+    const data = await buy(buyState.country_id, buyState.item.type, buyState.item.key, buyState.qty, reason);
+    const meta = COUNTRY_META[buyState.country_id] || { flag: '🏳', name: buyState.country_id };
+    toast(`🛒 ${meta.flag} ${meta.name} · 采购 ${buyState.item.name} 成功 · -${fmt(data.total_cost)} 金币`, 'ok', 2800);
+    fetchData();
+    closeBuyModal();
+  } catch (err) {
+    toast('采购失败: ' + (err.message || err), 'err', 3500);
+  } finally {
+    validateBuyForm();
+  }
+});
+
+// ==========================================================================
+// Logs modal
+// ==========================================================================
+let logsState = { country_id: null, filter: 'all', all: [] };
+
+function openLogsModal(country_id) {
+  logsState.country_id = country_id || null;
+  logsState.filter = 'all';
+  document.querySelectorAll('#logs-filter .tab').forEach(t => t.classList.toggle('active', t.dataset.filter === 'all'));
+  if (country_id) {
+    const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+    document.getElementById('logs-title').innerHTML = `${meta.flag} ${escapeHtml(meta.name)} · 日志`;
+  } else {
+    document.getElementById('logs-title').innerHTML = `📜 全部日志 · 4 国合流`;
+  }
+  document.getElementById('logs-list').innerHTML = `<div class="text-center text-[color:var(--muted)] py-8 text-sm">加载中…</div>`;
+  document.getElementById('logs-modal').classList.remove('hidden');
+  fetchLogs();
+}
+
+function closeLogsModal() {
+  document.getElementById('logs-modal').classList.add('hidden');
+  logsState.country_id = null;
+}
+
+async function fetchLogs() {
+  if (!WEBAPP_URL) return;
+  try {
+    const params = new URLSearchParams({ action: 'logs', limit: '200', t: String(Date.now()) });
+    if (COUNTRY_TOKEN) params.set('country', COUNTRY_TOKEN);
+    else if (logsState.country_id) params.set('country_id', logsState.country_id);
+    // when both COUNTRY_TOKEN and logsState.country_id are empty → fetch ALL countries' logs
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    logsState.all = data.logs || [];
+    renderLogs();
+  } catch (err) {
+    document.getElementById('logs-list').innerHTML = `<div class="text-center text-[color:var(--rust)] py-8 text-sm">加载失败: ${escapeHtml(err.message || err)}</div>`;
+  }
+}
+
+function relativeTime(iso) {
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return '';
+  const diff = Math.floor((Date.now() - t) / 1000);
+  if (diff < 60) return `${diff}秒前`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+  return `${Math.floor(diff / 86400)}天前`;
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return String(iso || '');
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function renderLogs() {
+  const list = document.getElementById('logs-list');
+  const items = logsState.all.filter(l => logsState.filter === 'all' || l.event === logsState.filter);
+  if (items.length === 0) {
+    list.innerHTML = `<div class="text-center text-[color:var(--muted)] py-8 text-sm">无记录</div>`;
+    return;
+  }
+  const showCountryChip = !logsState.country_id;
+  list.innerHTML = items.map(l => {
+    const ev = l.event || 'adjust';
+    const evLabel = {
+      adjust: '调整',
+      produce_ok: '制造成功',
+      produce_fail: '制造失败',
+      sell: '销售',
+      sell_fail: '运输失败',
+      buy: '采购',
+      purchase_apply: '申请采购单',
+      rd_ok: '研发成功',
+      rd_fail: '研发失败',
+      draw: '抽奖'
+    }[ev] || ev;
+    const hasBA = (l.before !== '' && l.before != null) && (l.after !== '' && l.after != null);
+    const fieldLabel = ({ coins: '金币', love: '爱心值', honor: '荣誉值', level: '等级' })[l.field] || l.field || '';
+    const countryChip = showCountryChip && l.country_id ? `<span class="log-country-chip ${escapeHtml(l.country_id)}">${escapeHtml(String(l.country_id).toUpperCase())}</span>` : '';
+    let baBlock = '';
+    if (hasBA && ev === 'adjust') {
+      const d = Number(l.delta);
+      const sign = d > 0 ? '+' : '';
+      const cls = d > 0 ? 'pos' : 'neg';
+      baBlock = `
+        <div class="ba-row">
+          <span class="ba-field">${escapeHtml(fieldLabel)}</span>
+          <span class="num ba-from">${fmt(l.before)}</span>
+          <span class="ba-arrow">→</span>
+          <span class="num ba-to">${fmt(l.after)}</span>
+          <span class="ba-delta ${cls}">${sign}${fmt(l.delta)}</span>
+        </div>
+      `;
+    }
+    return `
+      <div class="log-row ${escapeHtml(ev)}">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-1">
+            <span class="log-meta num">${formatTime(l.timestamp)}</span>
+            <span class="log-meta">· ${relativeTime(l.timestamp)}</span>
+            <span class="log-mentor">${escapeHtml(l.mentor || '?')}</span>
+            <span class="log-event-tag ${escapeHtml(ev)}">${evLabel}</span>
+            ${countryChip}
+          </div>
+        </div>
+        ${baBlock}
+        <div class="log-detail">${escapeHtml(l.detail || '')}</div>
+        ${l.reason ? `<div class="log-reason">原因: ${escapeHtml(l.reason)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('logs-close').addEventListener('click', closeLogsModal);
+document.getElementById('logs-refresh').addEventListener('click', fetchLogs);
+document.getElementById('logs-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'logs-modal') closeLogsModal();
+});
+document.getElementById('logs-filter').addEventListener('click', (e) => {
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  logsState.filter = t.dataset.filter;
+  document.querySelectorAll('#logs-filter .tab').forEach(x => x.classList.toggle('active', x === t));
+  renderLogs();
+});
+
+// ==========================================================================
+// Global event delegation
+// ==========================================================================
+document.getElementById('cards').addEventListener('click', (e) => {
+  // upgrade CTA — open level-up confirm
+  const upCta = e.target.closest('[data-upgrade-confirm]');
+  if (upCta) {
+    const country_id = upCta.dataset.upgradeConfirm;
+    const nextLvl = upCta.dataset.nextLvl;
+    openLevelUpModal(country_id, Number(nextLvl));
+    return;
+  }
+  // tap the number itself to adjust
+  const tapStat = e.target.closest('.stat-tappable');
+  if (tapStat) {
+    const country_id = tapStat.dataset.country;
+    const field = tapStat.dataset.field;
+    if (!country_id || !field) return;
+    openModal(country_id, field);
+    return;
+  }
+  // toggle upgrade detail
+  const upBar = e.target.closest('[data-upgrade-toggle]');
+  if (upBar) {
+    const section = upBar.closest('section');
+    const det = section && section.querySelector('[data-upgrade-detail]');
+    if (det) det.classList.toggle('hidden');
+    return;
+  }
+  // produce button
+  const prodBtn = e.target.closest('[data-produce]');
+  if (prodBtn) {
+    openProduceModal(prodBtn.dataset.produce);
+    return;
+  }
+  // logs button
+  const logBtn = e.target.closest('[data-logs]');
+  if (logBtn) {
+    openLogsModal(logBtn.dataset.logs);
+    return;
+  }
+  // draw button
+  const drawBtn = e.target.closest('[data-draw]');
+  if (drawBtn) {
+    openDrawModal(drawBtn.dataset.draw);
+    return;
+  }
+  // buy button
+  const buyBtn = e.target.closest('[data-buy]');
+  if (buyBtn) {
+    openBuyModal(buyBtn.dataset.buy);
+    return;
+  }
+  // purchase center button (apply for purchase orders)
+  const purBtn = e.target.closest('[data-purchase]');
+  if (purBtn) {
+    openPurchaseModal(purBtn.dataset.purchase);
+    return;
+  }
+  // sell button
+  const sellBtn = e.target.closest('[data-sell]');
+  if (sellBtn) {
+    openSellModal(sellBtn.dataset.sell);
+    return;
+  }
+  // asset breakdown link
+  const assetLink = e.target.closest('[data-asset-detail]');
+  if (assetLink) {
+    openAssetModal(assetLink.dataset.assetDetail);
+    return;
+  }
+});
+
+document.getElementById('mentor-select').addEventListener('change', (e) => {
+  setMentor(e.target.value);
+  if (mentor) toast(`身份切换: 导师 ${mentor}`, 'ok', 1200);
+});
+
+document.getElementById('global-logs-btn').addEventListener('click', () => {
+  if (READONLY) return;
+  openLogsModal(null);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!document.getElementById('adjust-modal').classList.contains('hidden')) closeAdjustModal();
+    if (!document.getElementById('produce-modal').classList.contains('hidden')) closeProduceModal();
+    if (!document.getElementById('logs-modal').classList.contains('hidden')) closeLogsModal();
+    if (!document.getElementById('draw-modal').classList.contains('hidden')) closeDrawModal();
+    if (!document.getElementById('buy-modal').classList.contains('hidden')) closeBuyModal();
+    if (!document.getElementById('sell-modal').classList.contains('hidden')) closeSellModal();
+    if (!document.getElementById('purchase-modal').classList.contains('hidden')) closePurchaseModal();
+    if (!document.getElementById('asset-modal').classList.contains('hidden')) closeAssetModal();
+    if (!document.getElementById('reset-modal').classList.contains('hidden')) closeResetModal();
+  }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (!document.getElementById('adjust-modal').classList.contains('hidden')) document.getElementById('modal-confirm').click();
+    if (!document.getElementById('produce-modal').classList.contains('hidden') && !document.getElementById('produce-stage-confirm').classList.contains('hidden')) {
+      document.getElementById('produce-confirm').click();
+    }
+    if (!document.getElementById('buy-modal').classList.contains('hidden') && !document.getElementById('buy-stage-confirm').classList.contains('hidden')) {
+      document.getElementById('buy-confirm').click();
+    }
+    if (!document.getElementById('sell-modal').classList.contains('hidden') && !document.getElementById('sell-stage-confirm').classList.contains('hidden')) {
+      document.getElementById('sell-confirm').click();
+    }
+    if (!document.getElementById('draw-modal').classList.contains('hidden') && !document.getElementById('draw-confirm').classList.contains('hidden')) {
+      document.getElementById('draw-submit').click();
+    }
+  }
+});
+
+// ==========================================================================
+// Init
+// ==========================================================================
+if (READONLY) {
+  // hide mentor selector + global logs, add readonly badge
+  document.getElementById('mentor-select').style.display = 'none';
+  document.getElementById('global-logs-btn').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+  const badge = document.createElement('span');
+  badge.className = 'readonly-badge';
+  badge.textContent = '只读 · 团队视图';
+  document.getElementById('sync-dot').parentElement.insertBefore(badge, document.getElementById('sync-dot'));
+  // tweak layout for single card
+  document.querySelector('main').classList.add('readonly-main');
+} else {
+  setMentor(mentor);
+}
+renderAll([], []);
+fetchData();
+setInterval(fetchData, POLL_INTERVAL_MS);
+</script>
+
+</body>
+</html>

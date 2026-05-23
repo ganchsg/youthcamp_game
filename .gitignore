@@ -1,0 +1,20 @@
+# Intermediate HTML from md2pdf.py (regenerable)
+*.html
+!index.html
+
+# Tool / IDE state
+.claude/
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
