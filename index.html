@@ -914,53 +914,91 @@ const RES = [
 
 const RES_LABEL = { water:'水', oil:'石油', wood:'木材', metal:'金属', electricity:'电力', chips:'晶片' };
 
-// Mirror of backend RECIPES.
-const RECIPES = {
+// Fallback recipes — live source is Google Sheet "Recipes" via latestData.recipes.
+// Used until first dumpData_ response lands.
+const RECIPES_FALLBACK = {
+  // MY
   '石油燃料包':       { country: 'my', level: 1, res: { oil: 100, water: 100 }, semi: [] },
   '木材资源包':       { country: 'my', level: 1, res: { wood: 100, oil: 100 }, semi: [] },
   '基础发电机':       { country: 'my', level: 1, res: { metal: 100, oil: 100 }, semi: [] },
   '工业能源核心':     { country: 'my', level: 2, res: { oil: 200, metal: 100, electricity: 100 }, semi: ['石油燃料包'] },
   '港口运输系统':     { country: 'my', level: 2, res: { metal: 200, wood: 100, electricity: 200 }, semi: ['木材资源包'] },
   '工业燃料系统':     { country: 'my', level: 2, res: { oil: 300, electricity: 100 }, semi: ['基础发电机', '石油燃料包'] },
-  '太阳能核心':       { country: 'my', level: 3, res: { chips: 100, metal: 200, electricity: 200 }, semi: ['石油燃料包', '工业燃料系统', '实验仪器'] },
+  '太阳能核心':       { country: 'my', level: 3, res: { chips: 200, metal: 200, electricity: 200 }, semi: ['石油燃料包', '工业燃料系统', '实验仪器'] },
   '水力能源系统':     { country: 'my', level: 3, res: { metal: 300, water: 300 }, semi: ['基础发电机', '工业能源核心', '国家安全AI'] },
   '永续能源模组':     { country: 'my', level: 3, res: { chips: 200, electricity: 300, oil: 100 }, semi: ['木材资源包', '港口运输系统', 'AI电脑'] },
   '国家能源网络':     { country: 'my', level: 4, res: { chips: 300, metal: 300, electricity: 300 }, semi: ['太阳能核心', '水力能源系统', 'AI核心系统', '国家安全AI'] },
   '全球能源供应系统': { country: 'my', level: 4, res: { oil: 500, electricity: 200, chips: 200 }, semi: ['永续能源模组', '太阳能核心', '生化医疗系统', '智能机器人'] },
+  // KR
   '手机零件':         { country: 'kr', level: 1, res: { metal: 100, electricity: 100 }, semi: [] },
   '基础电脑系统':     { country: 'kr', level: 1, res: { chips: 100, electricity: 100 }, semi: [] },
   '电竞设备':         { country: 'kr', level: 1, res: { metal: 100, chips: 100 }, semi: [] },
   'AI电脑':           { country: 'kr', level: 2, res: { chips: 200, electricity: 200, metal: 100 }, semi: ['基础电脑系统'] },
   '智能监控系统':     { country: 'kr', level: 2, res: { chips: 200, metal: 200 }, semi: ['基础电脑系统'] },
-  '云端AI服务器':     { country: 'kr', level: 2, res: { chips: 300, electricity: 200 }, semi: ['手机零件', '基础电脑系统'] },
+  '云端AI服务器':     { country: 'kr', level: 2, res: { chips: 300, electricity: 100 }, semi: ['手机零件', '基础电脑系统'] },
   '智能机器人':       { country: 'kr', level: 3, res: { chips: 100, metal: 200, electricity: 300 }, semi: ['手机零件', '智能监控系统', '国家安全AI'] },
   '自动驾驶系统':     { country: 'kr', level: 3, res: { chips: 300, electricity: 200, metal: 100 }, semi: ['基础电脑系统', '智能监控系统', '实验仪器'] },
   'AI核心系统':       { country: 'kr', level: 3, res: { chips: 200, electricity: 300, metal: 100 }, semi: ['电竞设备', '云端AI服务器', '工业燃料系统'] },
   '卫星科技系统':     { country: 'kr', level: 4, res: { chips: 500, metal: 200, electricity: 200 }, semi: ['智能机器人', 'AI核心系统', '医疗AI诊断系统', '太空卫星网络'] },
   '火箭控制系统':     { country: 'kr', level: 4, res: { metal: 200, electricity: 500, chips: 200 }, semi: ['自动驾驶系统', 'AI核心系统', '永续能源模组', '生化医疗系统'] },
+  // JP
   '医疗用品':         { country: 'jp', level: 1, res: { wood: 100, water: 100 }, semi: [] },
   '药品包':           { country: 'jp', level: 1, res: { water: 100, oil: 100 }, semi: [] },
   '防护装备':         { country: 'jp', level: 1, res: { wood: 100, metal: 100 }, semi: [] },
   '医疗设备':         { country: 'jp', level: 2, res: { metal: 200, electricity: 100, water: 100 }, semi: ['医疗用品'] },
-  '实验仪器':         { country: 'jp', level: 2, res: { metal: 200, chips: 100 }, semi: ['防护装备'] },
+  '实验仪器':         { country: 'jp', level: 2, res: { metal: 200, chips: 300 }, semi: ['防护装备'] },
   '紧急救援系统':     { country: 'jp', level: 2, res: { electricity: 200, metal: 200 }, semi: ['药品包', '医疗用品'] },
   '生化医疗系统':     { country: 'jp', level: 3, res: { chips: 300, water: 200, electricity: 100 }, semi: ['医疗用品', '医疗设备', '工业能源核心'] },
   '疫苗研发核心':     { country: 'jp', level: 3, res: { chips: 100, metal: 200, electricity: 300 }, semi: ['防护装备', '实验仪器', '智能监控系统'] },
   '医疗AI诊断系统':   { country: 'jp', level: 3, res: { chips: 200, electricity: 200, oil: 200 }, semi: ['药品包', '紧急救援系统', '战略无人机'] },
   '全球医疗网络':     { country: 'jp', level: 4, res: { chips: 400, electricity: 200, water: 300 }, semi: ['医疗AI诊断系统', '疫苗研发核心', '太空卫星网络', 'AI核心系统'] },
   '高级医疗产品':     { country: 'jp', level: 4, res: { chips: 400, electricity: 300, water: 200 }, semi: ['生化医疗系统', '疫苗研发核心', '永续能源模组', '太空科技'] },
+  // US
   '金融软件':         { country: 'us', level: 1, res: { chips: 100, electricity: 100 }, semi: [] },
   '投资系统':         { country: 'us', level: 1, res: { metal: 100, chips: 100 }, semi: [] },
   '商业网络系统':     { country: 'us', level: 1, res: { electricity: 100, metal: 100 }, semi: [] },
-  '国防系统':         { country: 'us', level: 2, res: { metal: 300, electricity: 200, chips: 100 }, semi: ['商业网络系统'] },
+  '国防系统':         { country: 'us', level: 2, res: { metal: 300, chips: 100 }, semi: ['商业网络系统'] },
   '战略无人机':       { country: 'us', level: 2, res: { chips: 300, metal: 200 }, semi: ['金融软件'] },
-  '国家安全AI':       { country: 'us', level: 2, res: { chips: 200, electricity: 300 }, semi: ['商业网络系统', '投资系统'] },
-  '太空科技':         { country: 'us', level: 3, res: { chips: 500, metal: 400, electricity: 400 }, semi: ['投资系统', '战略无人机', '紧急救援系统'] },
-  '宇航系统':         { country: 'us', level: 3, res: { electricity: 500, chips: 500 }, semi: ['金融软件', '国家安全AI', '工业能源核心'] },
-  '太空卫星网络':     { country: 'us', level: 3, res: { metal: 500, chips: 400 }, semi: ['商业网络系统', '国防系统', 'AI电脑'] },
+  '国家安全AI':       { country: 'us', level: 2, res: { chips: 200, electricity: 200 }, semi: ['商业网络系统', '投资系统'] },
+  '太空科技':         { country: 'us', level: 3, res: { chips: 200, metal: 200, electricity: 200 }, semi: ['投资系统', '战略无人机', '紧急救援系统'] },
+  '宇航系统':         { country: 'us', level: 3, res: { electricity: 300, chips: 300 }, semi: ['金融软件', '国家安全AI', '工业能源核心'] },
+  '太空卫星网络':     { country: 'us', level: 3, res: { metal: 400, chips: 200 }, semi: ['商业网络系统', '国防系统', 'AI电脑'] },
   '全球金融AI系统':   { country: 'us', level: 4, res: { metal: 500, chips: 100, electricity: 300 }, semi: ['太空卫星网络', '太空科技', '永续能源模组', '医疗AI诊断系统'] },
   '世界防御网络':     { country: 'us', level: 4, res: { chips: 300, metal: 100, electricity: 500 }, semi: ['太空卫星网络', '宇航系统', '太阳能核心', '智能机器人'] },
 };
+
+/** Build recipe object from latestData.recipes (sheet rows). Fallback to hardcoded. */
+function buildRecipes() {
+  const rows = (latestData && latestData.recipes) || [];
+  if (!rows.length) return RECIPES_FALLBACK;
+  const out = {};
+  rows.forEach(row => {
+    const name = String(row.name || '').trim();
+    if (!name) return;
+    const country = String(row.country || '').trim().toLowerCase();
+    const level = Number(row.level) || 0;
+    if (!country || !level) return;
+    const res = {};
+    ['water', 'oil', 'wood', 'metal', 'electricity', 'chips'].forEach(k => {
+      const v = Number(row[k]) || 0;
+      if (v > 0) res[k] = v;
+    });
+    const semi = [];
+    ['semi1', 'semi2', 'semi3', 'semi4'].forEach(k => {
+      const v = String(row[k] || '').trim();
+      if (v) semi.push(v);
+    });
+    out[name] = { country: country, level: level, res: res, semi: semi };
+  });
+  return Object.keys(out).length ? out : RECIPES_FALLBACK;
+}
+// Proxy so existing `RECIPES[name]` and `Object.keys(RECIPES)` keep working.
+const RECIPES = new Proxy({}, {
+  get: (_, k) => buildRecipes()[k],
+  ownKeys: () => Object.keys(buildRecipes()),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+  has: (_, k) => k in buildRecipes(),
+});
 
 // ==========================================================================
 // LEVEL_UP rules — built dynamically from Google Sheet "LevelUp" table.
@@ -1018,7 +1056,7 @@ const LEVEL_UP = new Proxy({}, { get: (_, k) => buildLevelUp()[k] });
 // ==========================================================================
 // State + helpers
 // ==========================================================================
-let latestData = { countries: [], products: [], prices: [], config: [], rd_prizes: [], purchase_orders: [], love_table: [], level_up: [] };
+let latestData = { countries: [], products: [], prices: [], config: [], rd_prizes: [], purchase_orders: [], love_table: [], level_up: [], recipes: [] };
 let mentor = localStorage.getItem('ycs.mentor') || '';
 
 const fmt = (n) => { if (n === '' || n == null) return '—'; const v = Number(n); return isFinite(v) ? v.toLocaleString('en-US') : '—'; };
@@ -1429,6 +1467,7 @@ async function fetchData() {
       purchase_orders: data.purchase_orders || [],
       love_table: data.love_table || [],
       level_up: data.level_up || [],
+      recipes: data.recipes || [],
     };
     const nextSnap = buildSnapshot(latestData.countries);
     const changes = prevSnapshot ? diffSnapshots(prevSnapshot, nextSnap) : [];
