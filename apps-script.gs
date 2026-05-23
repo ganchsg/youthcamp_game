@@ -86,6 +86,7 @@ const DEFAULT_CONFIG = [
   ['rd_fail_rate',   0.2, '研发失败概率 (0-1), 失败时金币不退'],
   ['jp_res_price',   450, '日本购买基础资源的统一单价 (留空则回退到 price 列)'],
   ['honor_coin',    1000, '每点荣誉值折算金币 (用于总资产计算)'],
+  ['purchase_dup_ratio', 5, '采购单非重复产品权重比 (5 = 新产品被抽到的概率是已持有的 5 倍; 1 = 完全平均)'],
 ];
 
 // ==== RD Prizes (sheet-driven; weighted random when RD succeeds) ====
@@ -833,23 +834,22 @@ function purchaseApply_(body) {
 
   // Build product pool: country + level (from live Recipes sheet)
   const recipes = getRecipes_();
-  const fullPool = Object.keys(recipes).filter(name => {
+  const pool = Object.keys(recipes).filter(name => {
     const r = recipes[name];
     return r.country === country_id && r.level === level;
   });
-  if (fullPool.length === 0) {
+  if (pool.length === 0) {
     return json_({ ok: false, error: `${String(country_id).toUpperCase()} 在 L${level} 没有可用产品` });
   }
-  // Exclude products that already have an active PO (avoid same-product duplicates)
+
+  // Weighted random: products already in an active PO get weight 1,
+  // products not yet held get weight `dupRatio` (default 5). So duplicates
+  // are still possible just less likely. Set Config.purchase_dup_ratio=1
+  // for fully uniform random.
   const activeProducts = {};
   active.forEach(po => { activeProducts[String(po.product)] = true; });
-  const pool = fullPool.filter(name => !activeProducts[name]);
-  if (pool.length === 0) {
-    return json_({
-      ok: false,
-      error: `${String(country_id).toUpperCase()} L${level} 现有 ${fullPool.length} 个产品都已在活跃采购单中 — 先生产消耗一张再申请`,
-    });
-  }
+  const dupRatio = Math.max(1, Number(getConfigNum_('purchase_dup_ratio', 5)) || 5);
+  const weights = pool.map(name => activeProducts[name] ? 1 : dupRatio);
 
   // Charge coins
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -873,7 +873,15 @@ function purchaseApply_(body) {
   sh.getRange(rowIdx + 1, coinsCol + 1).setValue(newCoins);
 
   // Pick a random product
-  const product = pool[Math.floor(Math.random() * pool.length)];
+  // Weighted random pick
+  const totalW = weights.reduce((s, w) => s + w, 0);
+  let rnd = Math.random() * totalW;
+  let pickedIdx = 0;
+  for (let i = 0; i < weights.length; i++) {
+    rnd -= weights[i];
+    if (rnd <= 0) { pickedIdx = i; break; }
+  }
+  const product = pool[pickedIdx];
 
   // Create the PO
   const poId = appendPO_(country_id, level, product, mentor);
