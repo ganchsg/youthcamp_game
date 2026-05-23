@@ -53,8 +53,8 @@ const DEFAULT_LOVETABLE = [
 const INITSTATE_HEADERS = ['country_id', 'coins', 'water', 'oil', 'wood', 'metal', 'electricity', 'chips', 'note'];
 const DEFAULT_INITSTATE = [
   ['my', 10000, 1500, 1500, 1500, 1500, 1500, 1500, '资源国 — 起始 1500/资源'],
-  ['kr', 10000, 0,    0,    0,    0,    0,    0,    '科技国 — L1 卖银行有溢价 (sell_price_kr)'],
-  ['jp', 10000, 0,    0,    0,    0,    0,    0,    '医疗国 — 买资源 20% 便宜 (price_jp=400)'],
+  ['kr', 10000, 0,    0,    0,    0,    0,    0,    '科技国 — L1 卖银行 +10% 溢价 (写入 Prices.sell_price)'],
+  ['jp', 10000, 0,    0,    0,    0,    0,    0,    '医疗国 — 买资源 -10% (price_jp=450)'],
   ['us', 20000, 0,    0,    0,    0,    0,    0,    '金融国 — 起始金币 2 倍'],
 ];
 
@@ -65,7 +65,7 @@ const DEFAULT_CONFIG = [
   ['purchase_limit',   2, '每个国家同时持有的最大采购单数量'],
   ['rd_cost',        500, '研发部投资的金币成本'],
   ['rd_fail_rate',   0.2, '研发失败概率 (0-1), 失败时金币不退'],
-  ['jp_res_price',   400, '日本购买基础资源的统一单价 (留空则回退到 price 列)'],
+  ['jp_res_price',   450, '日本购买基础资源的统一单价 (留空则回退到 price 列)'],
   ['honor_coin',    1000, '每点荣誉值折算金币 (用于总资产计算)'],
 ];
 
@@ -82,11 +82,12 @@ const DEFAULT_RD_PRIZES = [
 
 // Default prices — only used when Prices sheet doesn't exist.
 // Mentor can edit the Prices sheet during the game to adjust on-the-fly.
-const DEFAULT_RES_PRICE = 500;    // coins per 100 units (standard); JP pays price_jp=400 (-20%)
+const DEFAULT_RES_PRICE = 500;    // coins per 100 units (standard); JP pays price_jp=450 (-10%)
 const DEFAULT_L1_PRICE  = 1000;   // coins per 1 product
 const DEFAULT_L2_PRICE  = 3000;   // coins per 1 product
 const DEFAULT_L3_PRICE  = 8000;   // coins per 1 product (asset valuation only — NOT buyable)
 const DEFAULT_L4_PRICE  = 20000;  // coins per 1 product (asset valuation only — NOT buyable)
+const KR_L1_SELL_BONUS = 1.10;    // KR sells L1 to bank at +10% (baked into sell_price)
 
 // All recipes for all 4 countries.
 // res: base resources (water/oil/wood/metal/electricity/chips), each min 100 units
@@ -927,19 +928,24 @@ function addProduct_(productsSh, pHeaders, pCidCol, pNameCol, pQtyCol, pLvlCol, 
 function buildDefaultPrices_() {
   const rows = [];
   const sell = (buy) => Math.floor(buy * DEFAULT_SELL_RATIO);
-  const JP_RES = 400;  // JP discount on resource buy (= DEFAULT_RES_PRICE × 0.8)
+  const JP_RES = 450;  // JP discount on resource buy (= DEFAULT_RES_PRICE × 0.9, -10%)
   // Columns: item_type, item_key, unit_size, price, price_jp, sell_price, asset_value, note
   // Resources: asset_value = 0 (raw materials don't count toward NAV; convert to products first)
   RES_KEYS.forEach(k => {
     rows.push(['resource', k, 100, DEFAULT_RES_PRICE, JP_RES, sell(DEFAULT_RES_PRICE), 0, RES_LABELS_GS[k]]);
   });
   // Products: asset_value defaults to buy price (manufacturing cost is the baseline)
+  // KR L1 gets +10% on sell_price (manufacturing-profit bonus, baked into the row)
   Object.keys(RECIPES).forEach(name => {
     const r = RECIPES[name];
     const cc = String(r.country).toUpperCase();
     const lvlPrice = r.level === 1 ? DEFAULT_L1_PRICE : r.level === 2 ? DEFAULT_L2_PRICE : r.level === 3 ? DEFAULT_L3_PRICE : DEFAULT_L4_PRICE;
-    const sellP = sell(lvlPrice);
-    rows.push(['l' + r.level, name, 1, lvlPrice, '', sellP, lvlPrice, cc + ' L' + r.level + (r.level >= 3 ? ' · 估值' : '')]);
+    const baseSell = sell(lvlPrice);
+    const sellP = (r.country === 'kr' && r.level === 1) ? Math.floor(baseSell * KR_L1_SELL_BONUS) : baseSell;
+    const noteSuffix = (r.country === 'kr' && r.level === 1)
+      ? ' · KR +10% 制造溢价'
+      : (r.level >= 3 ? ' · 估值' : '');
+    rows.push(['l' + r.level, name, 1, lvlPrice, '', sellP, lvlPrice, cc + ' L' + r.level + noteSuffix]);
   });
   return rows;
 }
@@ -1521,15 +1527,22 @@ function ensureDefaultPrices_() {
   const jpCol      = h2.indexOf('price_jp');
   const assetCol   = h2.indexOf('asset_value');
   if (sellCol === -1 || priceCol === -1) return;
-  const JP_RES = 400;
+  const JP_RES = 450;  // -10%
+  const keyCol2 = h2.indexOf('item_key');
   for (let r = 1; r < v2.length; r++) {
     const type = String(v2[r][typeCol2] || '');
+    const key  = keyCol2 !== -1 ? String(v2[r][keyCol2] || '') : '';
     const buy  = Number(v2[r][priceCol]) || 0;
     const cur  = v2[r][sellCol];
     if (cur === '' || cur === null) {
-      sh.getRange(r + 1, sellCol + 1).setValue(Math.floor(buy * DEFAULT_SELL_RATIO));
+      // KR L1 gets +10% bonus baked in
+      const recipe = key && RECIPES[key];
+      const isKrL1 = recipe && recipe.country === 'kr' && recipe.level === 1 && type === 'l1';
+      const baseSell = Math.floor(buy * DEFAULT_SELL_RATIO);
+      const sellVal = isKrL1 ? Math.floor(baseSell * KR_L1_SELL_BONUS) : baseSell;
+      sh.getRange(r + 1, sellCol + 1).setValue(sellVal);
     }
-    // Backfill price_jp = 400 for resource rows missing it
+    // Backfill price_jp = 450 for resource rows missing it
     if (jpCol !== -1 && type === 'resource') {
       const j = v2[r][jpCol];
       if (j === '' || j === null) {
