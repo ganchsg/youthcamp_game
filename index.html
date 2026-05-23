@@ -963,9 +963,10 @@ const RECIPES = {
 };
 
 // ==========================================================================
-// LEVEL_UP rules
+// LEVEL_UP rules — built dynamically from Google Sheet "LevelUp" table.
+// Fallback to hardcoded defaults if the sheet is empty / not loaded.
 // ==========================================================================
-const LEVEL_UP = {
+const LEVEL_UP_FALLBACK = {
   2: { label: 'Lv.1 → Lv.2', conds: [
     { key: 'l1_orders', label: '完成 L1 产品', need: 10 },
     { key: 'coins',     label: '金币',         need: 20000 },
@@ -987,10 +988,37 @@ const LEVEL_UP = {
   ]},
 };
 
+function buildLevelUp() {
+  const rows = (latestData && latestData.level_up) || [];
+  if (!rows.length) return LEVEL_UP_FALLBACK;
+  const groups = {};
+  rows.forEach(r => {
+    const to = Number(r.to_level);
+    const key = String(r.key || '').trim();
+    const need = Number(r.need);
+    if (!to || !key || !isFinite(need)) return;
+    if (!groups[to]) groups[to] = [];
+    groups[to].push({
+      key: key,
+      label: String(r.label || key),
+      need: need,
+    });
+  });
+  const result = {};
+  Object.keys(groups).forEach(to => {
+    const n = Number(to);
+    const label = n === 5 ? 'L4 终极' : `Lv.${n - 1} → Lv.${n}`;
+    result[n] = { label: label, conds: groups[n] };
+  });
+  return Object.keys(result).length ? result : LEVEL_UP_FALLBACK;
+}
+// Backwards-compat alias: existing code reads LEVEL_UP[nextLvl] via this getter.
+const LEVEL_UP = new Proxy({}, { get: (_, k) => buildLevelUp()[k] });
+
 // ==========================================================================
 // State + helpers
 // ==========================================================================
-let latestData = { countries: [], products: [], prices: [], config: [], rd_prizes: [], purchase_orders: [], love_table: [] };
+let latestData = { countries: [], products: [], prices: [], config: [], rd_prizes: [], purchase_orders: [], love_table: [], level_up: [] };
 let mentor = localStorage.getItem('ycs.mentor') || '';
 
 const fmt = (n) => { if (n === '' || n == null) return '—'; const v = Number(n); return isFinite(v) ? v.toLocaleString('en-US') : '—'; };
@@ -1400,6 +1428,7 @@ async function fetchData() {
       rd_prizes: data.rd_prizes || [],
       purchase_orders: data.purchase_orders || [],
       love_table: data.love_table || [],
+      level_up: data.level_up || [],
     };
     const nextSnap = buildSnapshot(latestData.countries);
     const changes = prevSnapshot ? diffSnapshots(prevSnapshot, nextSnap) : [];

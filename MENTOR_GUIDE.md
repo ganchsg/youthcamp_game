@@ -42,6 +42,7 @@
 | **Config** | 全局参数 (申请费/上限/研发费/失败率/荣誉金额) | ✅ 随时改 | 是 |
 | **RDPrizes** | 研发抽奖奖池 (type/value/weight/label) | ✅ 随时改 | 下次抽奖生效 |
 | **LoveTable** | 爱心 → 资产倍数映射 | ✅ 随时改 | 是 |
+| **LevelUp** | 升级门槛 (to_level / key / label / need) | ✅ 随时改 | 是 |
 | **InitialState** | 重置时各国回到的初始值 | ✅ 比赛前设定好 | 下次重置生效 |
 | **PurchaseOrders** | 采购单流水 (active/consumed) | 应急时手动改 | 是 |
 | **CountryTokens** | 国家只读链接 token | 改后告诉国家新链接 | 是 |
@@ -254,6 +255,40 @@
 **阶梯函数:** love=4 没行, 用 love=3 的 1.15。love=10 超过最高, 锁在 1.20。
 
 **想加难度?** 加新行 love=10, multiplier=1.30 → 5-9 之间还是 1.20。
+
+---
+
+## 8a. 📈 LevelUp (升级门槛)
+
+每行 = 一个条件; 多行同一个 `to_level` 是 AND (全部达标才能升)。
+
+| to_level | key | label | need | note |
+|---|---|---|---|---|
+| 2 | l1_orders | 完成 L1 产品 | 10 | |
+| 2 | coins | 金币 | 20000 | |
+| 2 | shipments | 成功运输 | 5 | |
+| 3 | l2_orders | 完成 L2 产品 | 5 | |
+| 3 | coins | 金币 | 50000 | |
+| 4 | l3_orders | 完成 L3 产品 | 3 | |
+| 4 | coins | 金币 | 80000 | |
+| 5 | l4_distinct | 不同 L4 产品 | 2 | |
+| 5 | coins | 金币 | 80000 | |
+| 5 | love | 爱心值 | 1 | |
+| 5 | honor | 荣誉值 | 1 | |
+
+**支持的 key** (匹配 Countries 表的列, 或派生值):
+- `coins`, `love`, `honor`
+- `l1_orders`, `l2_orders`, `l3_orders`, `l4_orders` (累积尝试次数, 含失败)
+- `shipments` (成功运输次数)
+- `l4_distinct` (派生: 已生产过的不同 L4 产品种类数)
+
+**编辑技巧:**
+- 想让某级简单 → 改 need 值
+- 想多加一个条件 → 新增一行同 to_level
+- 想去掉一个条件 → 删那一行
+- 想增加 Lv.6? → 新增 to_level=6 的行 (但前端目前只支持到 Lv.5, 需要前端配套改)
+
+改完 sheet **立刻生效** (不用重新部署),所有国家卡片上的升级进度条会在下次刷新时按新规则显示。
 
 ---
 

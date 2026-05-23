@@ -36,6 +36,25 @@ const DEFAULT_SELL_RATIO = 0.6;  // mentor pays 60% of buy price when buying bac
 // status: 'active' (usable) | 'consumed' (used by produce, success or fail)
 const PURCHASE_HEADERS = ['id', 'country_id', 'level', 'product', 'status', 'created_at', 'consumed_at', 'mentor_apply', 'mentor_consume'];
 
+// ==== Level-up rules ====
+// One row per condition. Multiple rows with the same to_level form the AND-set
+// of requirements. `key` matches a country field (coins / l1_orders / love /
+// shipments etc.) or the derived `l4_distinct`.
+const LEVELUP_HEADERS = ['to_level', 'key', 'label', 'need', 'note'];
+const DEFAULT_LEVELUP = [
+  [2, 'l1_orders',  '完成 L1 产品', 10,    ''],
+  [2, 'coins',      '金币',         20000, ''],
+  [2, 'shipments',  '成功运输',     5,     ''],
+  [3, 'l2_orders',  '完成 L2 产品', 5,     ''],
+  [3, 'coins',      '金币',         50000, ''],
+  [4, 'l3_orders',  '完成 L3 产品', 3,     ''],
+  [4, 'coins',      '金币',         80000, ''],
+  [5, 'l4_distinct','不同 L4 产品', 2,     '需做出 2 个不同 L4 产品'],
+  [5, 'coins',      '金币',         80000, ''],
+  [5, 'love',       '爱心值',       1,     ''],
+  [5, 'honor',      '荣誉值',       1,     ''],
+];
+
 // ==== Love Table (asset multiplier per love value, step function) ====
 // For love value V, multiplier = highest row where row.love ≤ V (else 1.0).
 // E.g. table [0→1.0, 1→1.1, 3→1.15]: love=2 → 1.1, love=3 → 1.15, love=5 → 1.15
@@ -52,7 +71,7 @@ const DEFAULT_LOVETABLE = [
 // Mentor edits this sheet to tweak the starting wealth/resources of each country.
 const INITSTATE_HEADERS = ['country_id', 'coins', 'water', 'oil', 'wood', 'metal', 'electricity', 'chips', 'note'];
 const DEFAULT_INITSTATE = [
-  ['my', 10000, 1500, 1500, 1500, 1500, 1500, 1500, '资源国 — 起始 1500/资源'],
+  ['my', 10000, 1600, 1600, 1600, 1600, 1600, 1600, '资源国 — 起始 1600/资源'],
   ['kr', 10000, 0,    0,    0,    0,    0,    0,    '科技国 — L1 卖银行 +10% 溢价 (写入 Prices.sell_price)'],
   ['jp', 10000, 0,    0,    0,    0,    0,    0,    '医疗国 — 买资源 -10% (price_jp=450)'],
   ['us', 20000, 0,    0,    0,    0,    0,    0,    '金融国 — 起始金币 2 倍'],
@@ -275,6 +294,7 @@ function dumpData_(country_id) {
   const config = readSheet_(ss, 'Config');
   const rd_prizes = readSheet_(ss, 'RDPrizes');
   const love_table = readSheet_(ss, 'LoveTable');
+  const level_up = readSheet_(ss, 'LevelUp');
   let purchase_orders = readSheet_(ss, 'PurchaseOrders').filter(o => String(o.status) === 'active');
   if (country_id) {
     countries = countries.filter(c => String(c.country_id) === String(country_id));
@@ -289,6 +309,7 @@ function dumpData_(country_id) {
     config: config,
     rd_prizes: rd_prizes,
     love_table: love_table,
+    level_up: level_up,
     purchase_orders: purchase_orders,
     readonly: !!country_id,
     country_id: country_id || null,
@@ -1377,6 +1398,7 @@ function setup() {
   ensureSheet_(ss, 'PurchaseOrders', PURCHASE_HEADERS, []);
   ensureSheet_(ss, 'InitialState', INITSTATE_HEADERS, DEFAULT_INITSTATE);
   ensureSheet_(ss, 'LoveTable', LOVETABLE_HEADERS, DEFAULT_LOVETABLE);
+  ensureSheet_(ss, 'LevelUp', LEVELUP_HEADERS, DEFAULT_LEVELUP);
 }
 
 function migrate() {
@@ -1390,11 +1412,23 @@ function migrate() {
   migrateSheet_(ss, 'PurchaseOrders', PURCHASE_HEADERS);
   migrateSheet_(ss, 'InitialState', INITSTATE_HEADERS);
   migrateSheet_(ss, 'LoveTable', LOVETABLE_HEADERS);
+  migrateSheet_(ss, 'LevelUp', LEVELUP_HEADERS);
   ensureDefaultPrices_();
   ensureDefaultConfig_();
   ensureDefaultRDPrizes_();
   ensureDefaultInitialState_();
   ensureDefaultLoveTable_();
+  ensureDefaultLevelUp_();
+}
+
+/** Seed LevelUp with defaults if empty. */
+function ensureDefaultLevelUp_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName('LevelUp');
+  if (!sh) return;
+  if (sh.getLastRow() <= 1) {
+    sh.getRange(2, 1, DEFAULT_LEVELUP.length, LEVELUP_HEADERS.length).setValues(DEFAULT_LEVELUP);
+  }
 }
 
 /** Seed LoveTable with defaults if empty. */
