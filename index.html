@@ -35,7 +35,9 @@
   .level-pill { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
   .stat-label { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
   .res-pill { background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
-  .tab { padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--muted); border: 1px solid transparent; }
+  .tab { padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--muted); border: 1px solid transparent; cursor: pointer; }
+  .tab[disabled], .tab.locked-lv { opacity: 0.45; cursor: not-allowed; color: rgba(255,107,138,.65); }
+  .tab.locked-lv.active { background: transparent; }
   .prod-row { border-bottom: 1px dashed rgba(255,255,255,.05); }
   .prod-row:last-child { border-bottom: none; }
   .glow-gold { box-shadow: 0 0 0 1px rgba(245,197,66,.15), 0 8px 32px rgba(245,197,66,.05); }
@@ -212,8 +214,16 @@
 
   /* Active purchase order chips */
   .po-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .po-item { width: 100%; }
   .po-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px 4px 6px; border-radius: 8px; background: linear-gradient(135deg, rgba(255,138,76,.16), rgba(255,138,76,.05)); border: 1px solid rgba(255,138,76,.40); color: var(--rust); font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.4; }
   .po-chip .po-lv { font-size: 9px; padding: 1px 4px; background: rgba(255,138,76,.20); border-radius: 4px; letter-spacing: .04em; }
+  .po-chip[data-po-toggle] { cursor: pointer; user-select: none; transition: background .15s, border-color .15s; }
+  .po-chip[data-po-toggle]:hover { background: linear-gradient(135deg, rgba(255,138,76,.26), rgba(255,138,76,.10)); border-color: rgba(255,138,76,.65); }
+  .po-chip .po-arrow { font-size: 9px; opacity: 0.55; margin-left: 2px; transition: transform .15s, opacity .15s; }
+  .po-item.expanded .po-chip .po-arrow { transform: rotate(180deg); opacity: 1; }
+  .po-detail { display: none; margin-top: 4px; padding: 8px 10px; background: rgba(255,138,76,.04); border: 1px dashed rgba(255,138,76,.30); border-radius: 8px; }
+  .po-item.expanded .po-detail { display: block; }
+  .po-detail-title { font-size: 10px; color: var(--muted); letter-spacing: .04em; margin-bottom: 4px; text-transform: uppercase; }
   .po-empty-hint { font-size: 10px; color: var(--muted); padding: 5px 10px; border: 1px dashed rgba(255,255,255,.10); border-radius: 8px; letter-spacing: .04em; }
 
   /* Purchase center banner inside buy modal */
@@ -225,6 +235,8 @@
   .pc-lv-btn:hover:not([disabled]) { background: rgba(255,138,76,.16); border-color: rgba(255,138,76,.55); color: var(--rust); transform: translateY(-1px); }
   .pc-lv-btn:active { transform: scale(0.96); }
   .pc-lv-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+  .pc-lv-btn.locked-lv { background: rgba(255,107,138,.06); border-color: rgba(255,107,138,.30); color: rgba(255,107,138,.65); }
+  .pc-lv-btn.locked-lv[disabled] { opacity: 0.55; }
 
   /* Transport dice section inside sell modal */
   .ship-dice-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
@@ -683,6 +695,7 @@
         <button class="tab active" data-cat="resource">基础资源</button>
         <button class="tab" data-cat="l1">L1 产品</button>
         <button class="tab" data-cat="l2">L2 产品</button>
+        <button class="tab" data-cat="l3">L3 产品</button>
       </div>
       <div id="buy-item-list" class="recipe-list"></div>
     </div>
@@ -888,12 +901,16 @@
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz8Y2RFbIjoW8A93uvOLcEODG_0tFIWqbBGXQvxLv0NgzT9m03JqZzUyE02vYFJvPdeSQ/exec';
 const POLL_INTERVAL_MS = 3000;
 
-// ===== Team readonly mode =====
-// If URL has ?country=<token>, we enter readonly mode showing only that one
-// country, with all edit controls hidden. Tokens are managed in the backend's
-// "CountryTokens" sheet (run `generateTokens()` in Apps Script to mint).
+// ===== Access tokens =====
+// ?country=<token> → readonly team view (one country only, no controls).
+// ?mentor=<token>  → mentor editor view, identity locked to the token's mentor.
+// Without either → no access (a prompt page is shown, no data fetched).
+// Tokens are managed in backend "CountryTokens" / "MentorTokens" sheets.
+// Run `generateTokens()` / `generateMentorTokens()` in Apps Script to mint.
 const COUNTRY_TOKEN = new URLSearchParams(location.search).get('country') || '';
+const MENTOR_TOKEN  = new URLSearchParams(location.search).get('mentor')  || '';
 const READONLY = !!COUNTRY_TOKEN;
+const NO_TOKEN = !COUNTRY_TOKEN && !MENTOR_TOKEN;
 
 const COUNTRY_META = {
   my: { name: '马来西亚', flag: 'MY', domain: 'Energy · Resources',       stripClass: 'strip-my' },
@@ -1004,6 +1021,8 @@ const RECIPES = new Proxy({}, {
 // LEVEL_UP rules — built dynamically from Google Sheet "LevelUp" table.
 // Fallback to hardcoded defaults if the sheet is empty / not loaded.
 // ==========================================================================
+// Lv.4 是最终等级 (level 字段最大 4)。
+// to_level=5 行表示"Lv.4 终极完成"目标 — level 不会真变成 5,这是 Lv.4 的胜利条件。
 const LEVEL_UP_FALLBACK = {
   2: { label: 'Lv.1 → Lv.2', conds: [
     { key: 'l1_orders', label: '完成 L1 产品', need: 10 },
@@ -1018,11 +1037,11 @@ const LEVEL_UP_FALLBACK = {
     { key: 'l3_orders', label: '完成 L3 产品', need: 3 },
     { key: 'coins',     label: '金币',         need: 80000 },
   ]},
-  5: { label: 'L4 终极', conds: [
+  5: { label: '🏆 Lv.4 终极完成', conds: [
     { key: 'l4_distinct', label: '不同 L4 产品', need: 2 },
-    { key: 'coins',       label: '金币',         need: 80000 },
+    { key: 'coins',       label: '金币',         need: 120000 },
     { key: 'love',        label: '爱心值',       need: 1 },
-    { key: 'honor',       label: '荣誉值',       need: 1 },
+    { key: 'honor',       label: '荣誉值',       need: 30 },
   ]},
 };
 
@@ -1045,7 +1064,8 @@ function buildLevelUp() {
   const result = {};
   Object.keys(groups).forEach(to => {
     const n = Number(to);
-    const label = n === 5 ? 'L4 终极' : `Lv.${n - 1} → Lv.${n}`;
+    // n=5 在 sheet 里代表"Lv.4 终极完成目标" (level 字段不会真升到 5)
+    const label = n === 5 ? '🏆 Lv.4 终极完成' : `Lv.${n - 1} → Lv.${n}`;
     result[n] = { label: label, conds: groups[n] };
   });
   return Object.keys(result).length ? result : LEVEL_UP_FALLBACK;
@@ -1139,6 +1159,8 @@ function setMentor(v) {
 }
 
 function requireMentor() {
+  // ?mentor=<token> mode: identity comes from the URL token; no dropdown needed.
+  if (MENTOR_TOKEN) return true;
   if (!mentor) {
     toast('请先在右上角选择导师身份 (A/B/C/D/E)', 'err', 2500);
     document.getElementById('mentor-select').focus();
@@ -1179,10 +1201,10 @@ function renderCard(country, productsForCountry) {
 
   const derived = computeDerived(country, productsForCountry);
   const assetTotal = computeAsset(country, productsForCountry, latestData.prices);
-  const nextLvl = Math.min(5, (Number(lvl) || 1) + 1);
+  const nextLvl = Math.min(4, (Number(lvl) || 1) + 1);
   const rule = LEVEL_UP[nextLvl];
   let progressHtml = '';
-  if (rule && Number(lvl) < 5) {
+  if (rule && Number(lvl) < 4) {
     const condRows = rule.conds.map(c => {
       const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
       const done = current >= c.need;
@@ -1214,17 +1236,53 @@ function renderCard(country, productsForCountry) {
         ${condRows}
       </div>
     `;
-  } else if (Number(lvl) >= 5) {
-    progressHtml = `
-      <div class="mb-5 rounded-2xl p-3 text-center" style="background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(70,209,163,.06)); border: 1px solid rgba(245,197,66,.25);">
-        <div class="display text-base" style="color: var(--gold)">🏆 终极完成</div>
-      </div>
-    `;
+  } else if (Number(lvl) >= 4) {
+    // Lv.4 → show 终极完成目标 (LEVEL_UP[5]) progress if defined
+    const finalRule = LEVEL_UP[5];
+    if (finalRule) {
+      const finalCondRows = finalRule.conds.map(c => {
+        const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
+        const done = current >= c.need;
+        const pct = Math.min(100, (current / c.need) * 100);
+        return `
+          <div class="flex items-center justify-between text-[12px] py-0.5">
+            <span class="flex items-center gap-1.5 min-w-0">
+              <span class="${done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} text-[13px] leading-none">${done ? '✓' : '○'}</span>
+              <span class="${done ? 'text-[color:var(--text)]' : 'text-[color:var(--muted)]'} truncate">${c.label}</span>
+            </span>
+            <span class="num text-[11px] ${done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} shrink-0 ml-2">${fmt(current)} / ${fmt(c.need)}</span>
+          </div>
+          <div class="h-1 bg-[color:var(--line)] rounded-full overflow-hidden mb-1.5">
+            <div class="h-full ${done ? 'bg-[color:var(--emerald)]' : 'bg-[color:var(--gold)]'}" style="width: ${pct}%"></div>
+          </div>
+        `;
+      }).join('');
+      const finalDone = finalRule.conds.filter(c => {
+        const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
+        return current >= c.need;
+      }).length;
+      const finalAllDone = finalDone === finalRule.conds.length;
+      progressHtml = `
+        <div class="mb-5 rounded-2xl p-3" style="background: linear-gradient(135deg, rgba(245,197,66,.06), rgba(70,209,163,.04)); border: 1px solid rgba(245,197,66,.30);">
+          <div class="flex items-center justify-between mb-2">
+            <div class="stat-label" style="color: var(--gold)">${finalAllDone ? '🏆 终极完成 ✓' : '🏆 Lv.4 终极目标'}</div>
+            <div class="text-[10px] ${finalAllDone ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} num">${finalDone}/${finalRule.conds.length}</div>
+          </div>
+          ${finalCondRows}
+        </div>
+      `;
+    } else {
+      progressHtml = `
+        <div class="mb-5 rounded-2xl p-3 text-center" style="background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(70,209,163,.06)); border: 1px solid rgba(245,197,66,.25);">
+          <div class="display text-base" style="color: var(--gold)">🏆 已达最高等级 Lv.4</div>
+        </div>
+      `;
+    }
   }
 
   // ===== Compact upgrade summary: single bar + tap to expand =====
   let upgradeHtml = '';
-  if (rule && Number(lvl) < 5) {
+  if (rule && Number(lvl) < 4) {
     const totals = rule.conds.map(c => {
       const current = c.key === 'l4_distinct' ? derived.l4_distinct : numv(country[c.key]);
       return { ...c, current, done: current >= c.need };
@@ -1238,7 +1296,7 @@ function renderCard(country, productsForCountry) {
         <span class="num ${c.done ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'}">${fmt(c.current)} / ${fmt(c.need)}</span>
       </div>
     `).join('');
-    const ctaLabel = nextLvl === 5 ? '🏆 完成终极目标' : `🎉 升级到 Lv.${nextLvl}`;
+    const ctaLabel = `🎉 升级到 Lv.${nextLvl}`;
     const ctaBtn = (allDone && !READONLY) ? `
       <button class="upgrade-cta" data-upgrade-confirm="${id}" data-next-lvl="${nextLvl}">
         <span>${ctaLabel}</span>
@@ -1254,8 +1312,9 @@ function renderCard(country, productsForCountry) {
       </div>
       <div class="upgrade-detail mb-4" data-upgrade-detail>${detailRows}</div>
     `;
-  } else if (Number(lvl) >= 5) {
-    upgradeHtml = `<div class="text-center display py-2 mb-4" style="color: var(--gold); background: linear-gradient(135deg, rgba(245,197,66,.10), rgba(70,209,163,.06)); border-radius: 10px;">🏆 终极完成</div>`;
+  } else if (Number(lvl) >= 4) {
+    // Lv.4 — 终极目标进度由 progressHtml 渲染,upgradeHtml 留空 (无 CTA,level 不再升)
+    upgradeHtml = '';
   }
 
   // ===== Active purchase orders for this country =====
@@ -1264,8 +1323,26 @@ function renderCard(country, productsForCountry) {
     const status = String(o.status || '').trim().toLowerCase();
     return cid === id && status === 'active';
   });
+  const poInv = {};
+  productsForCountry.forEach(p => { poInv[p.name] = (poInv[p.name] || 0) + (Number(p.qty) || 0); });
   const poRowHtml = myPOs.length
-    ? `<div class="po-row">${myPOs.map(o => `<span class="po-chip" title="采购单 #${escapeHtml(o.id)} → 生产即消耗"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}</span>`).join('')}</div>`
+    ? `<div class="po-row">${myPOs.map(o => {
+        const r = RECIPES[o.product];
+        const detailHtml = r ? (() => {
+          const resChips = Object.entries(r.res).map(([k, v]) => {
+            const have = numv(country[k]);
+            const miss = have < v;
+            return `<span class="cost-chip ${miss ? 'missing' : ''}">${RES_LABEL[k]} ${v}</span>`;
+          }).join('');
+          const semiChips = r.semi.map(s => {
+            const have = poInv[s] || 0;
+            const miss = have < 1;
+            return `<span class="cost-chip semi ${miss ? 'missing' : ''}">${escapeHtml(s)} ×1</span>`;
+          }).join('');
+          return `<div class="po-detail-title">🏭 制造所需 · 采购单 #${escapeHtml(o.id)}</div><div>${resChips}${semiChips}</div>`;
+        })() : `<div class="po-detail-title text-[color:var(--muted)]">未找到配方</div>`;
+        return `<div class="po-item" data-po-item><span class="po-chip" data-po-toggle title="点击查看制造所需资源"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}<span class="po-arrow">▾</span></span><div class="po-detail">${detailHtml}</div></div>`;
+      }).join('')}</div>`
     : (READONLY ? '' : `<div class="po-row"><span class="po-empty-hint">⌛ 无采购单 — 点 📋订单 申请</span></div>`);
 
   // ===== Resource line: single dense row =====
@@ -1306,7 +1383,7 @@ function renderCard(country, productsForCountry) {
           ${READONLY ? '' : `
           <!-- Mentor action grid: 2 rows × 3 cols -->
           <div class="act-row">
-            <button class="btn-act buy"      data-buy="${id}"      title="银行采购 (买资源/L1/L2)"><span class="ico">🛒</span><span class="lbl">购买</span></button>
+            <button class="btn-act buy"      data-buy="${id}"      title="银行采购 (买资源 / 本国 L1 / 任何国家 L2 · L3)"><span class="ico">🛒</span><span class="lbl">购买</span></button>
             <button class="btn-act purchase" data-purchase="${id}" title="申请采购单 (花金币换订单)"><span class="ico">📋</span><span class="lbl">订单</span></button>
             <button class="btn-act produce"  data-produce="${id}"  title="生产产品 (需采购单)"><span class="ico">🏭</span><span class="lbl">生产</span></button>
             <button class="btn-act sell"     data-sell="${id}"     title="销售 (产品 → 银行或他国)"><span class="ico">💸</span><span class="lbl">销售</span></button>
@@ -1443,6 +1520,7 @@ function applyFlashes(changes) {
 let prevSnapshot = null;
 
 async function fetchData() {
+  if (NO_TOKEN) return;  // gated by token; nothing to fetch
   if (!WEBAPP_URL) {
     document.getElementById('setup-banner').classList.remove('hidden');
     setSyncState('err', '未配置 WEBAPP_URL');
@@ -1453,6 +1531,7 @@ async function fetchData() {
   try {
     const params = new URLSearchParams({ t: String(Date.now()) });
     if (COUNTRY_TOKEN) params.set('country', COUNTRY_TOKEN);
+    if (MENTOR_TOKEN)  params.set('mentor',  MENTOR_TOKEN);
     const url = WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString();
     const res = await fetch(url, { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1469,6 +1548,10 @@ async function fetchData() {
       level_up: data.level_up || [],
       recipes: data.recipes || [],
     };
+    // Mentor identity is server-resolved from MENTOR_TOKEN — lock it in.
+    if (MENTOR_TOKEN && data.mentor_identity && mentor !== data.mentor_identity) {
+      setMentor(data.mentor_identity);
+    }
     const nextSnap = buildSnapshot(latestData.countries);
     const changes = prevSnapshot ? diffSnapshots(prevSnapshot, nextSnap) : [];
     renderAll(latestData.countries, latestData.products);
@@ -1488,7 +1571,7 @@ async function adjust(country_id, field, delta, reason) {
     const params = new URLSearchParams({
       action: 'adjust', country_id, field,
       delta: String(delta), reason: reason || '',
-      mentor: mentor, t: String(Date.now())
+      mentor: MENTOR_TOKEN, t: String(Date.now())
     });
     const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1511,7 +1594,7 @@ async function produce(country_id, product, dice, reason) {
     const params = new URLSearchParams({
       action: 'produce', country_id, product,
       dice: dice == null ? '' : String(dice),
-      reason: reason || '', mentor, t: String(Date.now())
+      reason: reason || '', mentor: MENTOR_TOKEN, t: String(Date.now())
     });
     const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1534,7 +1617,7 @@ async function buy(country_id, item_type, item_key, qty, reason) {
   if (!requireMentor()) throw new Error('未选择导师');
   const params = new URLSearchParams({
     action: 'buy', country_id, item_type, item_key,
-    qty: String(qty), reason: reason || '', mentor, t: String(Date.now())
+    qty: String(qty), reason: reason || '', mentor: MENTOR_TOKEN, t: String(Date.now())
   });
   const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1552,7 +1635,7 @@ async function sell(country_id, item_type, item_key, qty, to, price, reason, dic
     price: (price == null ? '' : String(price)),
     dice: (dice == null ? '' : String(dice)),
     use_nofail: useNofail ? '1' : '0',
-    reason: reason || '', mentor, t: String(Date.now())
+    reason: reason || '', mentor: MENTOR_TOKEN, t: String(Date.now())
   });
   const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1987,7 +2070,7 @@ async function submitRD() {
     const params = new URLSearchParams({
       action: 'rd', country_id: drawState.country_id,
       reason: '研发部投资',
-      mentor, t: String(Date.now())
+      mentor: MENTOR_TOKEN, t: String(Date.now())
     });
     const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2116,15 +2199,17 @@ function openSellConfirm(rowEl) {
   `;
 
   // build destination tabs (bank + other countries)
+  // L4 是终极产品 — 只能卖给 🏦 银行,不能跨国
+  const isL4 = sellState.item.type === 'l4';
   const otherCountries = COUNTRY_ORDER.filter(id => id !== country_id);
   document.getElementById('sell-dest-tabs').innerHTML = `
     <div class="dest-tab active" data-dest="bank">
       <span class="icon">🏦</span><span class="label">银行</span>
     </div>
     ${otherCountries.map(id => `
-      <div class="dest-tab" data-dest="${id}">
+      <div class="dest-tab ${isL4 ? 'locked-lv' : ''}" data-dest="${id}" ${isL4 ? 'data-l4-locked="1"' : ''} ${isL4 ? `title="L4 是终极产品,不能跨国销售 — 只能卖给 🏦 银行"` : ''}>
         <span class="icon">${escapeHtml((COUNTRY_META[id] || {flag: id.toUpperCase()}).flag)}</span>
-        <span class="label">${escapeHtml((COUNTRY_META[id] || {name: id}).name)}</span>
+        <span class="label">${escapeHtml((COUNTRY_META[id] || {name: id}).name)}${isL4 ? ' 🔒' : ''}</span>
       </div>
     `).join('')}
   `;
@@ -2242,6 +2327,10 @@ document.getElementById('sell-item-list').addEventListener('click', (e) => {
 document.getElementById('sell-dest-tabs').addEventListener('click', (e) => {
   const t = e.target.closest('.dest-tab');
   if (!t) return;
+  if (t.dataset.l4Locked === '1') {
+    toast('L4 是终极产品,不能跨国销售 — 只能卖给 🏦 银行', 'err', 2400);
+    return;
+  }
   sellState.dest = t.dataset.dest;
   document.querySelectorAll('#sell-dest-tabs .dest-tab').forEach(x => x.classList.toggle('active', x === t));
   // reset price when switching dest
@@ -2463,6 +2552,14 @@ let buyState = { country_id: null, cat: 'resource', item: null, qty: 1 };
 const RES_ICON = { water:'💧', oil:'🛢', wood:'🪵', metal:'⚙️', electricity:'⚡', chips:'💎' };
 const RES_LABEL_ZH = { water:'水', oil:'石油', wood:'木材', metal:'金属', electricity:'电力', chips:'晶片' };
 
+// 国家等级 → 可买的最高产品级别。Lv.1 只能买资源; Lv.2 → +L1; Lv.3 → +L2; Lv.4+ → +L3.
+// (L4 不开放给银行采购 — 是终极产品,要自己做。)
+const BUY_CAT_MIN_LEVEL = { resource: 1, l1: 2, l2: 3, l3: 4 };
+function buyCatLocked(cat, countryLevel) {
+  const need = BUY_CAT_MIN_LEVEL[cat] || 1;
+  return countryLevel < need;
+}
+
 function openBuyModal(country_id) {
   if (!requireMentor()) return;
   buyState = { country_id, cat: 'resource', item: null, qty: 1 };
@@ -2470,10 +2567,29 @@ function openBuyModal(country_id) {
   const country = latestData.countries.find(c => c.country_id === country_id) || {};
   document.getElementById('buy-country-title').innerHTML = `🛒 ${escapeHtml(meta.name)} · 银行采购`;
   document.getElementById('buy-coins-info').innerHTML = `当前金币 <span class="num text-[color:var(--gold)] font-bold">${fmt(country.coins)}</span> · 导师 ${mentor || '?'}`;
-  document.querySelectorAll('#buy-cat-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.cat === 'resource'));
+  refreshBuyTabs();
   showBuyStage('pick');
   renderBuyList();
   document.getElementById('buy-modal').classList.remove('hidden');
+}
+
+/** Update tab disabled/locked state based on the country's current level. */
+function refreshBuyTabs() {
+  const country = latestData.countries.find(c => c.country_id === buyState.country_id) || {};
+  const lvl = Math.max(1, Math.min(4, Number(country.level) || 1));
+  document.querySelectorAll('#buy-cat-tabs .tab').forEach(t => {
+    const cat = t.dataset.cat;
+    const locked = buyCatLocked(cat, lvl);
+    t.classList.toggle('active', cat === buyState.cat);
+    t.classList.toggle('locked-lv', locked);
+    t.disabled = locked;
+    const lvlLabel = { l1: 'L1', l2: 'L2', l3: 'L3' }[cat];
+    t.title = locked && lvlLabel
+      ? `国家当前 Lv.${lvl},需升到 Lv.${BUY_CAT_MIN_LEVEL[cat]} 才能采购 ${lvlLabel} 产品`
+      : '';
+    const baseLabel = { resource: '基础资源', l1: 'L1 产品', l2: 'L2 产品', l3: 'L3 产品' }[cat] || cat;
+    t.textContent = locked ? `🔒 ${baseLabel}` : baseLabel;
+  });
 }
 
 // ===== Helpers for sheet-driven config / POs =====
@@ -2512,7 +2628,7 @@ async function submitReset() {
   try {
     const params = new URLSearchParams({
       action: 'reset', confirm: 'RESET',
-      mentor, t: String(Date.now())
+      mentor: MENTOR_TOKEN, t: String(Date.now())
     });
     const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2566,9 +2682,11 @@ function refreshPurchaseModal() {
   const country_id = purchaseState.country_id;
   if (!country_id) return;
   const cost  = Number(getConfig('purchase_cost',  100)) || 100;
-  const limit = Number(getConfig('purchase_limit', 2))   || 2;
-  const active = getActivePOs(country_id);
   const country = latestData.countries.find(c => c.country_id === country_id) || {};
+  const lvl = Math.max(1, Math.min(4, Number(country.level) || 1));
+  const PO_LIMIT_DEFAULTS = { 1: 2, 2: 3, 3: 5, 4: 5 };
+  const limit = Number(getConfig('purchase_limit_l' + lvl, PO_LIMIT_DEFAULTS[lvl])) || PO_LIMIT_DEFAULTS[lvl];
+  const active = getActivePOs(country_id);
   const coins = numv(country.coins);
   const canPay = coins >= cost;
   const atLimit = active.length >= limit;
@@ -2576,11 +2694,18 @@ function refreshPurchaseModal() {
   document.getElementById('pcm-cost').textContent = fmt(cost);
   document.getElementById('pcm-limit').textContent = fmt(limit);
   const status = document.getElementById('pcm-status');
-  status.innerHTML = ` · 持单 ${active.length}/${limit} · 金币 <span class="num text-[color:var(--gold)]">${fmt(coins)}</span>`
-    + (atLimit ? ' · <span style="color:var(--rose)">已达上限</span>' : (!canPay ? ' · <span style="color:var(--rose)">金币不足</span>' : ''));
+  status.innerHTML = ` · Lv.${lvl} · 持单 ${active.length}/${limit} · 金币 <span class="num text-[color:var(--gold)]">${fmt(coins)}</span>`
+    + (atLimit ? ' · <span style="color:var(--rose)">已达上限</span>' : (!canPay ? ' · <span style="color:var(--rose)">金币不足</span>' : ''))
+    + (lvl < 4 ? ` · <span style="color:var(--muted)">仅可申请 L1${lvl >= 2 ? '–L' + lvl : ''}</span>` : '');
   document.querySelectorAll('#pcm-lv-row .pc-lv-btn').forEach(b => {
-    b.disabled = atLimit || !canPay || purchaseState.busy;
-    b.textContent = 'L' + b.dataset.pcmLv;
+    const btnLv = Number(b.dataset.pcmLv);
+    const lockedByLevel = btnLv > lvl;
+    b.disabled = atLimit || !canPay || purchaseState.busy || lockedByLevel;
+    b.textContent = lockedByLevel ? `🔒 L${btnLv}` : 'L' + btnLv;
+    b.title = lockedByLevel
+      ? `国家当前 Lv.${lvl},需升到 Lv.${btnLv} 才能申请 L${btnLv} 采购单`
+      : '';
+    b.classList.toggle('locked-lv', lockedByLevel);
   });
 
   // Active orders list
@@ -2599,7 +2724,7 @@ async function purchaseApply(country_id, level) {
     const params = new URLSearchParams({
       action: 'purchase_apply', country_id, level: String(level),
       reason: `申请 L${level} 采购单`,
-      mentor, t: String(Date.now())
+      mentor: MENTOR_TOKEN, t: String(Date.now())
     });
     const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2653,9 +2778,15 @@ function showBuyStage(stage) {
 function getPricesByCat(cat, country_id) {
   return (latestData.prices || []).filter(p => {
     if (String(p.item_type) !== cat) return false;
-    if (cat === 'l1' || cat === 'l2') {
+    if (cat === 'l1') {
+      // L1 仍然只能买本国 (基础半成品自己做就行)
       const recipe = RECIPES[p.item_key];
       return recipe && recipe.country === country_id;
+    }
+    if (cat === 'l2' || cat === 'l3') {
+      // L2 / L3 任意国家都能从银行买 — 包括本国和其他国家的产品
+      const recipe = RECIPES[p.item_key];
+      return !!recipe; // 只要有配方就显示
     }
     return true; // resources are universal
   });
@@ -2678,18 +2809,31 @@ function renderBuyList() {
     list.innerHTML = `<div class="text-center text-[color:var(--muted)] py-8 text-sm">无价格数据 — 请运行 Apps Script 的 <code>migrate()</code> 初始化 Prices 表</div>`;
     return;
   }
+  const PROD_ICON = { l1: '🔧', l2: '⚙️', l3: '🛰️', l4: '🛡️' };
   list.innerHTML = items.map(p => {
     const isRes = p.item_type === 'resource';
-    const icon = isRes ? (RES_ICON[p.item_key] || '📦') : (p.item_type === 'l1' ? '🔧' : '⚙️');
+    const icon = isRes ? (RES_ICON[p.item_key] || '📦') : (PROD_ICON[p.item_type] || '📦');
     const name = isRes ? (RES_LABEL_ZH[p.item_key] || p.item_key) : p.item_key;
     const unitTxt = isRes ? `/${p.unit_size}单位` : '/个';
     const price = resolveBuyPrice(p, buyState.country_id);
     const jpFlag = (buyState.country_id === 'jp' && isRes && numv(p.price_jp) > 0 && numv(p.price_jp) !== numv(p.price))
       ? `<span class="text-[10px] text-[color:var(--rose)] ml-1">JP</span>` : '';
+    // 跨国采购: L2/L3 显示来源国家 chip; 本国产品标"本国"
+    let originChip = '';
+    if (!isRes && (p.item_type === 'l2' || p.item_type === 'l3')) {
+      const recipe = RECIPES[p.item_key];
+      const oc = recipe && recipe.country;
+      if (oc) {
+        const ocMeta = COUNTRY_META[oc];
+        const isOwn = oc === buyState.country_id;
+        const tag = isOwn ? '本国' : (ocMeta ? ocMeta.flag : oc.toUpperCase());
+        originChip = `<span class="log-country-chip ${oc}" style="margin-left:6px; font-size:9px;">${tag}</span>`;
+      }
+    }
     return `
       <div class="buy-item" data-item-type="${escapeHtml(p.item_type)}" data-item-key="${escapeHtml(p.item_key)}" data-unit-size="${p.unit_size}" data-price="${price}" data-display-name="${escapeHtml(name)}">
         <div class="buy-item-icon">${icon}</div>
-        <div class="buy-item-name">${escapeHtml(name)}</div>
+        <div class="buy-item-name">${escapeHtml(name)}${originChip}</div>
         <div class="buy-item-price">${fmt(price)} 金币<span class="unit">${unitTxt}</span>${jpFlag}</div>
       </div>
     `;
@@ -2707,7 +2851,8 @@ function openBuyConfirm(itemEl) {
   buyState.qty = 1;
   // render confirm preview
   const isRes = buyState.item.type === 'resource';
-  const iconBig = isRes ? (RES_ICON[buyState.item.key] || '📦') : (buyState.item.type === 'l1' ? '🔧' : '⚙️');
+  const PROD_ICON = { l1: '🔧', l2: '⚙️', l3: '🛰️', l4: '🛡️' };
+  const iconBig = isRes ? (RES_ICON[buyState.item.key] || '📦') : (PROD_ICON[buyState.item.type] || '📦');
   document.getElementById('buy-confirm-preview').innerHTML = `
     <div class="text-4xl mb-1">${iconBig}</div>
     <div class="display text-xl">${escapeHtml(buyState.item.name)}</div>
@@ -2778,9 +2923,15 @@ function validateBuyForm() {
 
 document.getElementById('buy-cat-tabs').addEventListener('click', (e) => {
   const t = e.target.closest('.tab');
-  if (!t) return;
+  if (!t || t.disabled) return;
+  const country = latestData.countries.find(c => c.country_id === buyState.country_id) || {};
+  const lvl = Math.max(1, Math.min(4, Number(country.level) || 1));
+  if (buyCatLocked(t.dataset.cat, lvl)) {
+    toast(`国家当前 Lv.${lvl},无法采购此分类 (需 Lv.${BUY_CAT_MIN_LEVEL[t.dataset.cat]})`, 'err', 2200);
+    return;
+  }
   buyState.cat = t.dataset.cat;
-  document.querySelectorAll('#buy-cat-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
+  refreshBuyTabs();
   renderBuyList();
 });
 
@@ -2995,6 +3146,13 @@ document.getElementById('cards').addEventListener('click', (e) => {
     if (det) det.classList.toggle('hidden');
     return;
   }
+  // toggle PO recipe detail
+  const poChip = e.target.closest('[data-po-toggle]');
+  if (poChip) {
+    const item = poChip.closest('[data-po-item]');
+    if (item) item.classList.toggle('expanded');
+    return;
+  }
   // produce button
   const prodBtn = e.target.closest('[data-produce]');
   if (prodBtn) {
@@ -3081,7 +3239,31 @@ document.addEventListener('keydown', (e) => {
 // ==========================================================================
 // Init
 // ==========================================================================
-if (READONLY) {
+if (NO_TOKEN) {
+  // No token at all → show prompt page, hide all editor chrome, skip polling.
+  document.getElementById('mentor-select').style.display = 'none';
+  document.getElementById('global-logs-btn').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+  document.getElementById('sync-dot').parentElement.style.display = 'none';
+  document.getElementById('cards').innerHTML = `
+    <div class="panel p-8 text-center" style="max-width: 480px; margin: 48px auto;">
+      <div style="font-size: 56px; line-height: 1;">🔒</div>
+      <div class="display text-xl mt-4">需要访问令牌</div>
+      <div class="text-sm mt-3" style="color: var(--muted); line-height: 1.6;">
+        这个面板需要带 token 的链接才能进入。<br>
+        请向主办方索取你的专属 URL，形如：
+      </div>
+      <div class="text-[12px] mt-3 px-3 py-2 rounded-lg" style="background: rgba(0,0,0,.25); color: var(--text); font-family: ui-monospace, monospace; word-break: break-all;">
+        ?mentor=&lt;你的导师 token&gt;<br>
+        ?country=&lt;团队 token&gt;
+      </div>
+      <div class="text-[11px] mt-4" style="color: var(--muted);">
+        Token 由 Google Sheet 后端的 <code>MentorTokens</code> / <code>CountryTokens</code> 表统一管理。
+      </div>
+    </div>
+  `;
+  document.getElementById('footer-status').textContent = '锁定 · 需要 token';
+} else if (READONLY) {
   // hide mentor selector + global logs, add readonly badge
   document.getElementById('mentor-select').style.display = 'none';
   document.getElementById('global-logs-btn').style.display = 'none';
@@ -3092,12 +3274,22 @@ if (READONLY) {
   document.getElementById('sync-dot').parentElement.insertBefore(badge, document.getElementById('sync-dot'));
   // tweak layout for single card
   document.querySelector('main').classList.add('readonly-main');
+  renderAll([], []);
+  fetchData();
+  setInterval(fetchData, POLL_INTERVAL_MS);
 } else {
+  // ?mentor=<token> mode: identity locked to the token, dropdown not needed.
+  // The resolved letter (A/B/C/D/E) lands via fetchData → setMentor(...).
+  const sel = document.getElementById('mentor-select');
+  sel.disabled = true;
+  sel.classList.remove('warn');
+  sel.classList.add('set');
+  sel.title = '导师身份由 URL token 锁定';
   setMentor(mentor);
+  renderAll([], []);
+  fetchData();
+  setInterval(fetchData, POLL_INTERVAL_MS);
 }
-renderAll([], []);
-fetchData();
-setInterval(fetchData, POLL_INTERVAL_MS);
 </script>
 
 </body>

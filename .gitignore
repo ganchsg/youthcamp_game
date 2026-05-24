@@ -3,6 +3,9 @@
 !index.html
 !bento.html
 
+# Live sheet snapshot fetched via curl (regenerable, see refresh_guides.py)
+_live_data.json
+
 # Tool / IDE state
 .claude/
 .vscode/

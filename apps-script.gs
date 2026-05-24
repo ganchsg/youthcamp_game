@@ -27,6 +27,7 @@ const COUNTRIES_HEADERS = [
 const PRODUCTS_HEADERS = ['country_id', 'level', 'name', 'qty'];
 const LOG_HEADERS = ['timestamp', 'mentor', 'country_id', 'event', 'field', 'delta', 'before', 'after', 'detail', 'reason'];
 const TOKEN_HEADERS = ['country_id', 'token', 'note'];
+const MENTOR_TOKEN_HEADERS = ['mentor_id', 'token', 'note'];
 // price_jp    = JP-specific buy price for resources (fallback to price if blank).
 // asset_value = 估值, used for asset/NAV display (fallback to price if blank).
 const PRICES_HEADERS = ['item_type', 'item_key', 'unit_size', 'price', 'price_jp', 'sell_price', 'asset_value', 'note'];
@@ -41,6 +42,8 @@ const PURCHASE_HEADERS = ['id', 'country_id', 'level', 'product', 'status', 'cre
 // of requirements. `key` matches a country field (coins / l1_orders / love /
 // shipments etc.) or the derived `l4_distinct`.
 const LEVELUP_HEADERS = ['to_level', 'key', 'label', 'need', 'note'];
+// Lv.4 是最终等级 (无 Lv.5)。
+// to_level=5 行 = "Lv.4 终极完成"目标 — level 不会真升到 5,这些是 Lv.4 的胜利条件。
 const DEFAULT_LEVELUP = [
   [2, 'l1_orders',  '完成 L1 产品', 10,    ''],
   [2, 'coins',      '金币',         20000, ''],
@@ -49,10 +52,10 @@ const DEFAULT_LEVELUP = [
   [3, 'coins',      '金币',         50000, ''],
   [4, 'l3_orders',  '完成 L3 产品', 3,     ''],
   [4, 'coins',      '金币',         80000, ''],
-  [5, 'l4_distinct','不同 L4 产品', 2,     '需做出 2 个不同 L4 产品'],
-  [5, 'coins',      '金币',         80000, ''],
-  [5, 'love',       '爱心值',       1,     ''],
-  [5, 'honor',      '荣誉值',       1,     ''],
+  [5, 'l4_distinct','不同 L4 产品', 2,     'Lv.4 终极完成目标 (level 不会真升到 5)'],
+  [5, 'coins',      '金币',        120000, 'Lv.4 终极完成目标'],
+  [5, 'love',       '爱心值',       1,     'Lv.4 终极完成目标'],
+  [5, 'honor',      '荣誉值',      30,     'Lv.4 终极完成目标'],
 ];
 
 // ==== Love Table (asset multiplier per love value, step function) ====
@@ -71,7 +74,7 @@ const DEFAULT_LOVETABLE = [
 // Mentor edits this sheet to tweak the starting wealth/resources of each country.
 const INITSTATE_HEADERS = ['country_id', 'coins', 'water', 'oil', 'wood', 'metal', 'electricity', 'chips', 'note'];
 const DEFAULT_INITSTATE = [
-  ['my', 10000, 1600, 1600, 1600, 1600, 1600, 1600, '资源国 — 起始 1600/资源'],
+  ['my', 10000, 400, 400, 400, 400, 400, 400, '资源国 — 起始 400/资源'],
   ['kr', 10000, 0,    0,    0,    0,    0,    0,    '科技国 — L1 卖银行 +10% 溢价 (写入 Prices.sell_price)'],
   ['jp', 10000, 0,    0,    0,    0,    0,    0,    '医疗国 — 买资源 -10% (price_jp=450)'],
   ['us', 20000, 0,    0,    0,    0,    0,    0,    '金融国 — 起始金币 2 倍'],
@@ -81,7 +84,10 @@ const DEFAULT_INITSTATE = [
 const CONFIG_HEADERS = ['key', 'value', 'note'];
 const DEFAULT_CONFIG = [
   ['purchase_cost',  100, '申请一张采购单的金币成本'],
-  ['purchase_limit',   2, '每个国家同时持有的最大采购单数量'],
+  ['purchase_limit_l1', 2, '国家 Lv.1 时同时持有最大采购单数量'],
+  ['purchase_limit_l2', 3, '国家 Lv.2 时同时持有最大采购单数量'],
+  ['purchase_limit_l3', 5, '国家 Lv.3 时同时持有最大采购单数量'],
+  ['purchase_limit_l4', 5, '国家 Lv.4 时同时持有最大采购单数量 (最高级)'],
   ['rd_cost',        500, '研发部投资的金币成本'],
   ['rd_fail_rate',   0.2, '研发失败概率 (0-1), 失败时金币不退'],
   ['jp_res_price',   450, '日本购买基础资源的统一单价 (留空则回退到 price 列)'],
@@ -247,6 +253,7 @@ function doGet(e) {
   try {
     const action = e && e.parameter && e.parameter.action;
     const token = e && e.parameter && e.parameter.country;
+    const mentorTokenParam = e && e.parameter && e.parameter.mentor;
     // ===== Readonly (team) mode: ?country=<token> =====
     if (token) {
       const country_id = resolveToken_(token);
@@ -259,14 +266,24 @@ function doGet(e) {
       }
       return dumpData_(country_id);
     }
-    // ===== Editor mode =====
+    // ===== Mentor (editor) mode: ?mentor=<token> required =====
+    // Resolve the URL-supplied mentor token to a mentor letter (A/B/C/D/E).
+    // No token, or unknown token → reject. The resolved letter is used for
+    // logging — the client cannot impersonate another mentor.
+    if (!mentorTokenParam) {
+      return json_({ ok: false, error: 'missing token', missing_token: true });
+    }
+    const mentor_id = resolveMentorToken_(mentorTokenParam);
+    if (!mentor_id) {
+      return json_({ ok: false, error: 'invalid mentor token', missing_token: true });
+    }
     if (action === 'adjust') {
       return withLock_(() => adjust_({
         country_id: e.parameter.country_id,
         field: e.parameter.field,
         delta: e.parameter.delta,
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'produce') {
@@ -275,7 +292,7 @@ function doGet(e) {
         product: e.parameter.product,
         dice: e.parameter.dice,
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'purchase_apply') {
@@ -283,19 +300,19 @@ function doGet(e) {
         country_id: e.parameter.country_id,
         level: e.parameter.level,
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'rd') {
       return withLock_(() => rd_({
         country_id: e.parameter.country_id,
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'reset') {
       return withLock_(() => reset_({
-        mentor: e.parameter.mentor,
+        mentor: mentor_id,
         confirm: e.parameter.confirm
       }));
     }
@@ -306,7 +323,7 @@ function doGet(e) {
         item_key: e.parameter.item_key,
         qty: e.parameter.qty,
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'sell') {
@@ -320,7 +337,7 @@ function doGet(e) {
         dice: e.parameter.dice,
         use_nofail: e.parameter.use_nofail === '1' || e.parameter.use_nofail === 'true',
         reason: e.parameter.reason,
-        mentor: e.parameter.mentor
+        mentor: mentor_id
       }));
     }
     if (action === 'recipes') {
@@ -329,7 +346,7 @@ function doGet(e) {
     if (action === 'logs') {
       return readLogs_(e.parameter.country_id, Number(e.parameter.limit) || 100);
     }
-    return dumpData_();
+    return dumpData_(null, mentor_id);
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
@@ -351,7 +368,7 @@ function doPost(e) {
   }
 }
 
-function dumpData_(country_id) {
+function dumpData_(country_id, mentor_id) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let countries = readSheet_(ss, 'Countries');
   let products = readSheet_(ss, 'Products');
@@ -380,6 +397,7 @@ function dumpData_(country_id) {
     purchase_orders: purchase_orders,
     readonly: !!country_id,
     country_id: country_id || null,
+    mentor_identity: mentor_id || null,
     updated_at: new Date().toISOString()
   });
 }
@@ -423,7 +441,14 @@ function adjust_(body) {
   for (let r = 1; r < values.length; r++) {
     if (String(values[r][idCol]) === String(country_id)) {
       const current = Number(values[r][fieldCol]) || 0;
-      const newVal = current + delta;
+      let newVal = current + delta;
+      // Lv 上限闸: 国家等级永远不能超过 4 (没有 Lv.5)
+      if (field === 'level' && newVal > 4) {
+        return json_({ ok: false, error: `Lv.${newVal} 超过最高等级 Lv.4 — 没有 Lv.5,不能再升` });
+      }
+      if (field === 'level' && newVal < 1) {
+        return json_({ ok: false, error: `Lv.${newVal} 无效 — 等级范围 1-4` });
+      }
       sh.getRange(r + 1, fieldCol + 1).setValue(newVal);
       writeLog_(mentor, country_id, 'adjust', field, delta, current, newVal,
                 `${field} ${current} → ${newVal} (${delta > 0 ? '+' : ''}${delta})`, reason);
@@ -824,12 +849,37 @@ function purchaseApply_(body) {
 
   // Live-read config each call (so changes in sheet take effect immediately)
   const cost  = getConfigNum_('purchase_cost', 100);
-  const limit = getConfigNum_('purchase_limit', 2);
+
+  // Fetch country row first — need the country's current level to determine PO limit
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName('Countries');
+  if (!sh) return json_({ ok: false, error: 'Countries sheet missing' });
+  const values = sh.getDataRange().getValues();
+  const headers = values[0];
+  const idCol = headers.indexOf('country_id');
+  const coinsCol = headers.indexOf('coins');
+  const lvlCol = headers.indexOf('level');
+  let rowIdx = -1;
+  for (let r = 1; r < values.length; r++) {
+    if (String(values[r][idCol]) === String(country_id)) { rowIdx = r; break; }
+  }
+  if (rowIdx === -1) return json_({ ok: false, error: 'country not found' });
+
+  // PO limit scales with country level — defaults: L1=2, L2=3, L3=5, L4=5 (Lv.4 是最高级)
+  const countryLevel = Math.max(1, Math.min(4, Number(values[rowIdx][lvlCol]) || 1));
+  const LIMIT_DEFAULTS = { 1: 2, 2: 3, 3: 5, 4: 5 };
+  const limit = getConfigNum_('purchase_limit_l' + countryLevel, LIMIT_DEFAULTS[countryLevel]);
+
+  // Level gate: country can only apply for orders up to its own current level.
+  // Lv.1 → only L1; Lv.2 → L1/L2; Lv.3 → L1/L2/L3; Lv.4 → all.
+  if (level > countryLevel) {
+    return json_({ ok: false, error: `国家当前 Lv.${countryLevel},无法申请 L${level} 采购单 (需先升到 Lv.${level})` });
+  }
 
   // Check existing active orders for this country
   const active = listActivePOs_(country_id);
   if (active.length >= limit) {
-    return json_({ ok: false, error: `已持有 ${active.length} 张采购单，达到上限 ${limit} 张` });
+    return json_({ ok: false, error: `已持有 ${active.length} 张采购单，达到上限 ${limit} 张 (国家 Lv.${countryLevel})` });
   }
 
   // Build product pool: country + level (from live Recipes sheet)
@@ -850,20 +900,6 @@ function purchaseApply_(body) {
   active.forEach(po => { activeProducts[String(po.product)] = true; });
   const dupRatio = Math.max(1, Number(getConfigNum_('purchase_dup_ratio', 5)) || 5);
   const weights = pool.map(name => activeProducts[name] ? 1 : dupRatio);
-
-  // Charge coins
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName('Countries');
-  if (!sh) return json_({ ok: false, error: 'Countries sheet missing' });
-  const values = sh.getDataRange().getValues();
-  const headers = values[0];
-  const idCol = headers.indexOf('country_id');
-  const coinsCol = headers.indexOf('coins');
-  let rowIdx = -1;
-  for (let r = 1; r < values.length; r++) {
-    if (String(values[r][idCol]) === String(country_id)) { rowIdx = r; break; }
-  }
-  if (rowIdx === -1) return json_({ ok: false, error: 'country not found' });
 
   const curCoins = Number(values[rowIdx][coinsCol]) || 0;
   if (curCoins < cost) {
@@ -897,6 +933,7 @@ function purchaseApply_(body) {
     new_coins: newCoins,
     active_count: active.length + 1,
     limit: limit,
+    country_level: countryLevel,
     pool: pool,                // candidate names (diagnostic)
     pool_held: pool.filter(n => activeProducts[n]),  // names already held (diagnostic)
     dup_ratio: dupRatio
@@ -1108,7 +1145,7 @@ function buy_(body) {
 
   if (!country_id) return json_({ ok: false, error: 'missing country_id' });
   if (!item_type || !item_key) return json_({ ok: false, error: 'missing item' });
-  if (['resource', 'l1', 'l2'].indexOf(item_type) === -1) return json_({ ok: false, error: 'item_type 必须是 resource/l1/l2' });
+  if (['resource', 'l1', 'l2', 'l3'].indexOf(item_type) === -1) return json_({ ok: false, error: 'item_type 必须是 resource/l1/l2/l3' });
   if (!isFinite(qty) || qty <= 0) return json_({ ok: false, error: 'qty 必须为正数' });
   if (!mentor) return json_({ ok: false, error: '必须先选择导师身份' });
   if (!reason) return json_({ ok: false, error: '必须填写采购原因' });
@@ -1116,12 +1153,14 @@ function buy_(body) {
   const priceInfo = getPriceInfo_(item_type, item_key, country_id);
   if (!priceInfo) return json_({ ok: false, error: '未知商品 (Prices 表中找不到): ' + item_key });
 
-  // Country-specific restriction for L1/L2 products
-  if (item_type === 'l1' || item_type === 'l2') {
+  // 产品归属校验:
+  //   L1 → 只能买本国 (基础半成品由各国自产)
+  //   L2 / L3 → 任意国家都能从银行买 (含本国和其他国家)
+  if (item_type === 'l1' || item_type === 'l2' || item_type === 'l3') {
     const recipe = getRecipes_()[item_key];
     if (!recipe) return json_({ ok: false, error: '未知产品: ' + item_key });
-    if (recipe.country !== country_id) {
-      return json_({ ok: false, error: item_key + ' 不属于 ' + String(country_id).toUpperCase() + '，只能购买本国产品' });
+    if (item_type === 'l1' && recipe.country !== country_id) {
+      return json_({ ok: false, error: item_key + ' 不属于 ' + String(country_id).toUpperCase() + '，L1 只能购买本国产品' });
     }
   }
 
@@ -1143,6 +1182,17 @@ function buy_(body) {
   }
   if (rowIdx === -1) return json_({ ok: false, error: 'country not found' });
 
+  // 等级闸: 国家等级越高,可买的产品级别越高。
+  //   Lv.1 → 只能买资源; Lv.2 → +L1; Lv.3 → +L2; Lv.4+ → +L3.
+  const lvlColB = headers.indexOf('level');
+  const countryLvl = Math.max(1, Math.min(4, Number(values[rowIdx][lvlColB]) || 1));
+  const CAT_MIN_LVL = { resource: 1, l1: 2, l2: 3, l3: 4 };
+  const minLvl = CAT_MIN_LVL[item_type] || 1;
+  if (countryLvl < minLvl) {
+    const catLabel = { resource: '基础资源', l1: 'L1 产品', l2: 'L2 产品', l3: 'L3 产品' }[item_type] || item_type;
+    return json_({ ok: false, error: `国家当前 Lv.${countryLvl},无法采购 ${catLabel} (需先升到 Lv.${minLvl})` });
+  }
+
   const curCoins = Number(values[rowIdx][coinsCol]) || 0;
   if (curCoins < totalCost) {
     return json_({ ok: false, error: '金币不足: 需 ' + totalCost + ', 当前 ' + curCoins });
@@ -1161,7 +1211,7 @@ function buy_(body) {
     sh.getRange(rowIdx + 1, resCol + 1).setValue(after);
     changes.push({ field: item_key, before: before, after: after });
   } else {
-    // l1 or l2 — add to Products sheet (qty units)
+    // l1 / l2 / l3 — add to Products sheet (qty units)
     const productsSh = ss.getSheetByName('Products');
     if (!productsSh) return json_({ ok: false, error: 'Products sheet missing' });
     const pValues0 = productsSh.getDataRange().getValues();
@@ -1170,12 +1220,14 @@ function buy_(body) {
     const pNameCol = pHeaders.indexOf('name');
     const pQtyCol = pHeaders.indexOf('qty');
     const pLvlCol = pHeaders.indexOf('level');
-    const lvl = item_type === 'l1' ? 1 : 2;
+    const LVL_MAP = { l1: 1, l2: 2, l3: 3 };
+    const lvl = LVL_MAP[item_type];
     const pc = addProduct_(productsSh, pHeaders, pCidCol, pNameCol, pQtyCol, pLvlCol, country_id, lvl, item_key, qty);
     changes.push({ field: item_key, before: pc.before, after: pc.after });
   }
 
-  const tag = item_type === 'resource' ? '基础资源' : ('L' + (item_type === 'l1' ? 1 : 2) + ' 产品');
+  const LVL_TAG = { l1: 'L1 产品', l2: 'L2 产品', l3: 'L3 产品' };
+  const tag = item_type === 'resource' ? '基础资源' : (LVL_TAG[item_type] || item_type);
   const changeStr = changes.map(c => c.field + ': ' + c.before + '→' + c.after).join(', ');
   const qtyStr = item_type === 'resource' ? (totalUnits + '单位') : ('×' + qty);
   const detail = '🛒 采购 [' + tag + '] ' + item_key + ' ' + qtyStr + ' (单价 ' + priceInfo.price + ', 共 ' + totalCost + ' 金币) | ' + changeStr;
@@ -1214,6 +1266,10 @@ function sell_(body) {
   if (to === seller_id) return json_({ ok: false, error: '不能卖给自己' });
   if (!mentor) return json_({ ok: false, error: '必须先选择导师身份' });
   if (!reason) return json_({ ok: false, error: '必须填写销售原因' });
+  // L4 不能跨国转让 — L4 是终极产品,只能本国生产 + 卖给银行
+  if (item_type === 'l4' && to !== 'bank') {
+    return json_({ ok: false, error: 'L4 产品不能跨国销售 — L4 只能本国生产,只能卖给 🏦 银行' });
+  }
 
   // Transport: dice required unless using no-fail card. 4 = fail.
   if (!useNofail) {
@@ -1423,6 +1479,45 @@ function resolveToken_(token) {
   return null;
 }
 
+/**
+ * Run this once (or anytime to rotate). Creates random tokens for each mentor
+ * (A/B/C/D/E) and stores them in the "MentorTokens" sheet.
+ *
+ * To give a mentor access to the editor view, share a URL like:
+ *    https://<your-dashboard>/index.html?mentor=<token>
+ * That URL is the only way to load the editor — no token, no access.
+ */
+function generateMentorTokens() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName('MentorTokens');
+  if (!sh) sh = ss.insertSheet('MentorTokens');
+  sh.clear();
+  sh.getRange(1, 1, 1, MENTOR_TOKEN_HEADERS.length).setValues([MENTOR_TOKEN_HEADERS])
+    .setFontWeight('bold').setBackground('#1a1e29').setFontColor('#e8eaf0');
+  const ids = ['A', 'B', 'C', 'D', 'E'];
+  const rows = ids.map(id => [id, randomToken_(16), '导师 ' + id]);
+  sh.getRange(2, 1, rows.length, MENTOR_TOKEN_HEADERS.length).setValues(rows);
+  sh.setFrozenRows(1);
+  sh.autoResizeColumns(1, MENTOR_TOKEN_HEADERS.length);
+}
+
+function resolveMentorToken_(token) {
+  if (!token) return null;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName('MentorTokens');
+  if (!sh) return null;
+  const values = sh.getDataRange().getValues();
+  if (values.length < 2) return null;
+  const headers = values[0];
+  const idCol = headers.indexOf('mentor_id');
+  const tokCol = headers.indexOf('token');
+  if (idCol === -1 || tokCol === -1) return null;
+  for (let r = 1; r < values.length; r++) {
+    if (String(values[r][tokCol]) === String(token)) return String(values[r][idCol]);
+  }
+  return null;
+}
+
 function readLogs_(country_id, limit) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const all = readSheet_(ss, 'Log');
@@ -1489,6 +1584,7 @@ function setup() {
   ensureSheet_(ss, 'LoveTable', LOVETABLE_HEADERS, DEFAULT_LOVETABLE);
   ensureSheet_(ss, 'LevelUp', LEVELUP_HEADERS, DEFAULT_LEVELUP);
   ensureSheet_(ss, 'Recipes', RECIPES_HEADERS, recipesObjectToRows_(RECIPES));
+  ensureMentorTokens_();
 }
 
 function migrate() {
@@ -1511,6 +1607,7 @@ function migrate() {
   ensureDefaultLoveTable_();
   ensureDefaultLevelUp_();
   ensureDefaultRecipes_();
+  ensureMentorTokens_();
 }
 
 /** Seed Recipes sheet with defaults if empty. */
@@ -1531,6 +1628,28 @@ function ensureDefaultLevelUp_() {
   if (!sh) return;
   if (sh.getLastRow() <= 1) {
     sh.getRange(2, 1, DEFAULT_LEVELUP.length, LEVELUP_HEADERS.length).setValues(DEFAULT_LEVELUP);
+  }
+}
+
+/**
+ * Ensure MentorTokens sheet exists and is seeded. Idempotent: if the sheet
+ * exists with rows, leave it alone (don't rotate existing tokens). Otherwise
+ * mint fresh ones for A/B/C/D/E.
+ */
+function ensureMentorTokens_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName('MentorTokens');
+  if (!sh) {
+    sh = ss.insertSheet('MentorTokens');
+    sh.getRange(1, 1, 1, MENTOR_TOKEN_HEADERS.length).setValues([MENTOR_TOKEN_HEADERS])
+      .setFontWeight('bold').setBackground('#1a1e29').setFontColor('#e8eaf0');
+    sh.setFrozenRows(1);
+  }
+  if (sh.getLastRow() <= 1) {
+    const ids = ['A', 'B', 'C', 'D', 'E'];
+    const rows = ids.map(id => [id, randomToken_(16), '导师 ' + id]);
+    sh.getRange(2, 1, rows.length, MENTOR_TOKEN_HEADERS.length).setValues(rows);
+    sh.autoResizeColumns(1, MENTOR_TOKEN_HEADERS.length);
   }
 }
 
