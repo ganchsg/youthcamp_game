@@ -1,0 +1,21 @@
+{
+  "name": "youthcamp-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "d1:create": "wrangler d1 create youthcamp",
+    "d1:schema": "wrangler d1 execute youthcamp --remote --file=./schema.sql",
+    "d1:schema:local": "wrangler d1 execute youthcamp --local --file=./schema.sql",
+    "d1:seed": "wrangler d1 execute youthcamp --remote --file=./seed.sql",
+    "d1:seed:local": "wrangler d1 execute youthcamp --local --file=./seed.sql",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250501.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^3.78.0"
+  }
+}

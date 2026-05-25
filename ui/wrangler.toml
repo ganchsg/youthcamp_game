@@ -1,0 +1,10 @@
+name = "youthcamp"
+compatibility_date = "2025-05-01"
+
+# Static-only Worker — serves files in ../public.
+# To redeploy after editing index.html:
+#   cp ../index.html ../public/index.html
+#   npx wrangler deploy
+[assets]
+directory = "../public"
+not_found_handling = "single-page-application"

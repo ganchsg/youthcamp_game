@@ -22,3 +22,17 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
+# D1 import/snapshot files contain mentor + country tokens — keep local only
+import.sql
+snapshot_*.sql
+CountryTokens.csv
+MentorTokens.csv
+country_tokens.csv
+mentor_tokens.csv
+
+# Pages / Workers deploy staging — rebuilt before each deploy
+public/
+
+# Wrangler local state (auth, dev D1, build cache)
+.wrangler/

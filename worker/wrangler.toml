@@ -1,0 +1,12 @@
+name = "youthcamp-api"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+
+# D1 binding — replace database_id after running `wrangler d1 create youthcamp`
+[[d1_databases]]
+binding = "DB"
+database_name = "youthcamp"
+database_id = "de2445ef-b8dd-44d4-9c34-9ba444de6c14"
+
+# CORS / origin behavior is handled in code (open allow-list, since
+# auth is via per-request mentor/country token in the query string).
