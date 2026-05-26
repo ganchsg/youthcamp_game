@@ -84,6 +84,9 @@ export async function purchaseApply(env: Env, b: PurchaseApplyBody): Promise<Res
               VALUES (?, ?, ?, ?, 'active', ?, ?)`)
     .bind(poId, country_id, level, product, nowIso(), mentor).run();
 
+  // Dedicated coin log first (so `WHERE field='coins'` catches every coin movement)
+  await writeLog(env, mentor, country_id, 'purchase_apply', 'coins', -cost, curCoins, newCoins,
+                 `💰 申请采购单 L${level} -${cost} 金币`, reason);
   const detail = `📋 申请采购单 L${level}: ${product} (花费 ${cost} 金币) #${poId} | 持单 ${active.length + 1}/${limit}`;
   await writeLog(env, mentor, country_id, 'purchase_apply', product, -cost, curCoins, newCoins, detail, reason);
 
@@ -97,5 +100,81 @@ export async function purchaseApply(env: Env, b: PurchaseApplyBody): Promise<Res
     pool,
     pool_held: pool.filter(n => activeProducts.has(n)),
     dup_ratio: dupRatio,
+  });
+}
+
+// ============================================================================
+// purchase_cancel — mentor cancels an active PO; optional coin refund.
+// ============================================================================
+export interface PurchaseCancelBody {
+  po_id?: string;
+  refund?: string | number | boolean;
+  reason?: string;
+  mentor?: string;
+}
+
+export async function purchaseCancel(env: Env, b: PurchaseCancelBody): Promise<Response> {
+  const poId = (b.po_id ?? '').toString().trim();
+  const refund = b.refund === true || b.refund === 1 || b.refund === '1' || b.refund === 'true';
+  const mentor = (b.mentor ?? '').toString().trim();
+  const reason = (b.reason ?? '取消采购单').toString().trim();
+
+  if (!poId) return err('missing po_id');
+  if (!mentor) return err('必须先选择导师身份');
+
+  // Look up the PO
+  const po = await env.DB
+    .prepare(`SELECT id, country_id, level, product, status FROM purchase_orders WHERE id = ?`)
+    .bind(poId)
+    .first<{ id: string; country_id: string; level: number; product: string; status: string }>();
+  if (!po) return err('采购单不存在: ' + poId);
+  if (po.status !== 'active') return err(`采购单已 ${po.status}，无法取消`);
+
+  // Mark cancelled
+  await env.DB
+    .prepare(`UPDATE purchase_orders
+              SET status = 'cancelled', consumed_at = ?, mentor_consume = ?
+              WHERE id = ? AND status = 'active'`)
+    .bind(nowIso(), mentor, poId).run();
+
+  // Refund (optional)
+  let refundAmt = 0;
+  let coinsBefore: number | null = null;
+  let coinsAfter: number | null = null;
+  if (refund) {
+    refundAmt = await getConfigNum(env, 'purchase_cost', 100);
+    const country = await getCountry(env, po.country_id);
+    if (country) {
+      coinsBefore = Number(country.coins) || 0;
+      coinsAfter = coinsBefore + refundAmt;
+      await env.DB
+        .prepare('UPDATE countries SET coins = coins + ? WHERE country_id = ?')
+        .bind(refundAmt, po.country_id).run();
+    }
+  }
+
+  // Dedicated coin log for the refund (only when actually refunded)
+  if (refund && coinsBefore != null && coinsAfter != null) {
+    await writeLog(
+      env, mentor, po.country_id, 'purchase_cancel', 'coins',
+      refundAmt, coinsBefore, coinsAfter,
+      `💰 取消采购单 L${po.level}: ${po.product} 退款 +${refundAmt} 金币`, reason,
+    );
+  }
+  const detail = refund
+    ? `🚫 取消采购单 L${po.level}: ${po.product} #${poId} | 退款 ${refundAmt} 金币 (${coinsBefore}→${coinsAfter})`
+    : `🚫 取消采购单 L${po.level}: ${po.product} #${poId} | 无退款`;
+  await writeLog(
+    env, mentor, po.country_id, 'purchase_cancel', po.product,
+    refund ? refundAmt : 0, coinsBefore, coinsAfter, detail, reason,
+  );
+
+  return ok({
+    po_id: poId,
+    country_id: po.country_id,
+    product: po.product,
+    refunded: refund,
+    refund_amount: refundAmt,
+    new_coins: coinsAfter,
   });
 }

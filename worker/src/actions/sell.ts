@@ -107,6 +107,8 @@ export async function sell(env: Env, b: SellBody): Promise<Response> {
 
   const sellerCoinsBefore = Number(seller.coins) || 0;
   let sellerCoinsAfter = sellerCoinsBefore;
+  let buyerCoinsBefore: number | null = null;
+  let buyerCoinsAfter: number | null = null;
 
   if (shipSuccess) {
     // 3) Seller's coins += totalCoins
@@ -126,12 +128,12 @@ export async function sell(env: Env, b: SellBody): Promise<Response> {
 
     // 5) Buyer country: -coins, +product
     if (buyer) {
-      const bcBefore = Number(buyer.coins) || 0;
-      const bcAfter = bcBefore - totalCoins;
+      buyerCoinsBefore = Number(buyer.coins) || 0;
+      buyerCoinsAfter = buyerCoinsBefore - totalCoins;
       await env.DB
         .prepare('UPDATE countries SET coins = ? WHERE country_id = ?')
-        .bind(bcAfter, to).run();
-      changes.push(`${to}:coins: ${bcBefore}→${bcAfter}`);
+        .bind(buyerCoinsAfter, to).run();
+      changes.push(`${to}:coins: ${buyerCoinsBefore}→${buyerCoinsAfter}`);
 
       const lvl = LVL_MAP[item_type];
       const pc = await addProduct(env, to, lvl, item_key, qty);
@@ -144,14 +146,22 @@ export async function sell(env: Env, b: SellBody): Promise<Response> {
   const tag = shipSuccess ? '💸 运输成功' : '✗ 运输失败';
   const diceStr = useNofail ? '🎫免失败卡' : `🎲${dice}`;
   const event = shipSuccess ? 'sell' : 'sell_fail';
+  // Dedicated seller coin log (only on success — fail has no coin change)
+  if (shipSuccess) {
+    await writeLog(env, mentor, seller_id, 'sell', 'coins', totalCoins, sellerCoinsBefore, sellerCoinsAfter,
+                   `💰 销售 ${item_key} ×${qty} → ${dest} +${totalCoins} 金币`, reason);
+  }
   const detail = shipSuccess
     ? `${tag} ${item_key} ×${qty} → ${dest} | ${diceStr} | 单价 ${unitPrice}, 共 ${totalCoins} 金币 | ${changes.join(', ')}`
     : `${tag} ${item_key} ×${qty} → ${dest} | ${diceStr} | 产品损失 | ${changes.join(', ')}`;
   await writeLog(env, mentor, seller_id, event, item_key,
                  shipSuccess ? totalCoins : 0, sellerCoinsBefore, sellerCoinsAfter, detail, reason);
   if (shipSuccess && to !== 'bank') {
+    // Dedicated buyer coin log + contextual mirror
+    await writeLog(env, mentor, to, 'sell', 'coins', -totalCoins, buyerCoinsBefore, buyerCoinsAfter,
+                   `💰 收购 ${item_key} ×${qty} ← ${seller_id.toUpperCase()} -${totalCoins} 金币`, reason);
     const buyerDetail = `💵 收购 ${item_key} ×${qty} ← ${seller_id.toUpperCase()} (单价 ${unitPrice}, 共 ${totalCoins} 金币)`;
-    await writeLog(env, mentor, to, 'sell', item_key, -totalCoins, null, null, buyerDetail, reason);
+    await writeLog(env, mentor, to, 'sell', item_key, -totalCoins, buyerCoinsBefore, buyerCoinsAfter, buyerDetail, reason);
   }
 
   return ok({

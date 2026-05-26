@@ -89,6 +89,9 @@ export async function buy(env: Env, b: BuyBody): Promise<Response> {
 
   const tag = item_type === 'resource' ? '基础资源' : ({ l1: 'L1 产品', l2: 'L2 产品', l3: 'L3 产品' } as Record<string, string>)[item_type];
   const qtyStr = item_type === 'resource' ? `${totalUnits}单位` : `×${qty}`;
+  // Dedicated coin log row first (so `WHERE field='coins'` catches every coin movement)
+  await writeLog(env, mentor, country_id, 'buy', 'coins', -totalCost, curCoins, newCoins,
+                 `💰 采购 [${tag}] ${item_key} ${qtyStr} -${totalCost} 金币`, reason);
   const detail = `🛒 采购 [${tag}] ${item_key} ${qtyStr} (单价 ${priceInfo.price}, 共 ${totalCost} 金币) | ${changes.join(', ')}`;
   await writeLog(env, mentor, country_id, 'buy', item_key, -totalCost, curCoins, newCoins, detail, reason);
 

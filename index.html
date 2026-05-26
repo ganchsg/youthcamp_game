@@ -223,6 +223,20 @@
   .po-chip[data-po-toggle]:hover { background: linear-gradient(135deg, rgba(255,138,76,.26), rgba(255,138,76,.10)); border-color: rgba(255,138,76,.65); }
   .po-chip .po-arrow { font-size: 9px; opacity: 0.55; margin-left: 2px; transition: transform .15s, opacity .15s; }
   .po-item.expanded .po-chip .po-arrow { transform: rotate(90deg); opacity: 1; }
+  .po-cancel-btn { font-size: 10px; padding: 3px 8px; border-radius: 6px; background: transparent; border: 1px solid rgba(255,107,138,.35); color: rgba(255,107,138,.85); cursor: pointer; transition: all .15s; letter-spacing: .03em; }
+  .po-cancel-btn:hover { background: rgba(255,107,138,.10); border-color: var(--rose); color: var(--rose); }
+  /* Recipe catalog at bottom of card */
+  .recipe-catalog { margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.06); }
+  .recipe-lvl-block { margin-top: 6px; }
+  .recipe-lvl-block:first-of-type { margin-top: 0; }
+  .recipe-lvl-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .recipe-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .recipe-item { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,.03); border: 1px solid var(--line); color: var(--muted); cursor: pointer; transition: all .15s; user-select: none; line-height: 1.5; }
+  .recipe-item:hover { background: rgba(255,255,255,.06); color: var(--text); border-color: rgba(255,255,255,.18); }
+  .recipe-item.expanded { background: rgba(245,197,66,.10); border-color: rgba(245,197,66,.45); color: var(--gold); font-weight: 600; }
+  .recipe-item-detail { display: none; margin: 4px 0 6px; padding: 6px 8px; background: rgba(245,197,66,.04); border: 1px dashed rgba(245,197,66,.30); border-radius: 8px; }
+  .recipe-item-detail.open { display: block; }
+  .recipe-item-detail-title { font-size: 10px; color: var(--muted); letter-spacing: .04em; margin-bottom: 4px; text-transform: uppercase; }
   .po-detail { display: none; margin-top: 4px; padding: 8px 10px; background: rgba(255,138,76,.04); border: 1px dashed rgba(255,138,76,.30); border-radius: 8px; }
   .po-item.expanded .po-detail { display: block; }
   .po-detail-title { font-size: 10px; color: var(--muted); letter-spacing: .04em; margin-bottom: 4px; text-transform: uppercase; }
@@ -782,6 +796,28 @@
   </div>
 </div>
 
+<!-- CANCEL PURCHASE ORDER modal -->
+<div id="cancel-po-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-panel">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="display text-base" style="color: var(--rust)">🚫 取消采购单</div>
+        <div class="text-[11px] text-[color:var(--muted)] mt-0.5" id="cancel-po-subtitle"></div>
+      </div>
+      <button id="cancel-po-close" class="text-[color:var(--muted)] hover:text-[color:var(--text)] text-2xl leading-none px-1" aria-label="关闭">×</button>
+    </div>
+    <div class="pc-banner" style="margin-bottom: 14px;">
+      <div class="pc-banner-title">选择如何处理这笔 <span class="num text-[color:var(--rust)] font-bold" id="cancel-po-cost">100</span> 金币购单成本</div>
+      <div class="pc-banner-sub">退款 = 当作"作废" · 不退款 = 当作"惩罚"</div>
+    </div>
+    <div class="flex gap-2 justify-end flex-wrap">
+      <button id="cancel-po-close-2" class="btn-modal">关闭</button>
+      <button id="cancel-po-no-refund" class="btn-modal" style="background: rgba(255,107,138,.12); border-color: rgba(255,107,138,.50); color: var(--rose); font-weight:700;">🚫 不退款取消</button>
+      <button id="cancel-po-refund" class="btn-modal" style="background: rgba(70,209,163,.12); border-color: rgba(70,209,163,.50); color: var(--emerald); font-weight:700;">🔁 退 <span id="cancel-po-refund-amt">100</span> 金币</button>
+    </div>
+  </div>
+</div>
+
 <!-- PURCHASE CENTER modal -->
 <div id="purchase-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal-panel">
@@ -1316,7 +1352,7 @@ function renderCard(country, productsForCountry) {
         <div class="upgrade-track"><div class="upgrade-fill" style="width: ${overallPct}%"></div></div>
         <span class="text-[10px] num ${allDone ? 'text-[color:var(--emerald)]' : 'text-[color:var(--muted)]'} shrink-0">${doneCount}/${totals.length}</span>
       </div>
-      <div class="upgrade-detail mb-4 hidden" data-upgrade-detail>${detailRows}</div>
+      <div class="upgrade-detail mb-4" data-upgrade-detail>${detailRows}</div>
     `;
   } else if (Number(lvl) >= 4) {
     // Lv.4 — 终极目标进度由 progressHtml 渲染,upgradeHtml 留空 (无 CTA,level 不再升)
@@ -1347,14 +1383,18 @@ function renderCard(country, productsForCountry) {
           }).join('');
           return `<div class="po-detail-title">🏭 制造所需 · 采购单 #${escapeHtml(o.id)}</div><div>${resChips}${semiChips}</div>`;
         })() : `<div class="po-detail-title text-[color:var(--muted)]">未找到配方</div>`;
-        return `<div class="po-item" data-po-item><span class="po-chip" data-po-toggle title="点击查看制造所需资源"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}<span class="po-arrow">▸</span></span><div class="po-detail">${detailHtml}</div></div>`;
+        const cancelBtn = READONLY ? '' : `<div class="mt-2 text-right"><button class="po-cancel-btn" data-po-cancel="${escapeHtml(o.id)}" data-po-product="${escapeHtml(o.product)}" data-po-level="${o.level}" data-po-country="${id}" title="导师手动取消此采购单">🚫 取消订单</button></div>`;
+        return `<div class="po-item expanded" data-po-item><span class="po-chip" data-po-toggle title="点击折叠"><span class="po-lv">L${o.level}</span>📋 ${escapeHtml(o.product)}<span class="po-arrow">▸</span></span><div class="po-detail">${detailHtml}${cancelBtn}</div></div>`;
       }).join('')}</div>`
     : (READONLY ? '' : `<div class="po-row"><span class="po-empty-hint">⌛ 无采购单 — 点 📋订单 申请</span></div>`);
 
   // ===== Resource line: 3 per row × 2 rows, icon + 中文名 + value =====
   const resLine = RES.map(r => {
     const v = numv(country[r.key]);
-    return `<div class="res-mini" title="${r.label} (${r.key})">`
+    const tappable = READONLY ? '' : 'stat-tappable';
+    const tapAttrs = READONLY ? '' : `data-country="${id}" data-field="${r.key}"`;
+    const tipText = READONLY ? `${r.label} (${r.key})` : `点击调整 ${r.label}`;
+    return `<div class="res-mini ${tappable}" title="${tipText}" ${tapAttrs}>`
          + `<span class="res-mini-icon">${r.icon}</span>`
          + `<span class="res-mini-name">${r.label}</span>`
          + `<span class="res-mini-val ${v === 0 ? 'zero' : ''}" data-flash-key="${id}:${r.key}">${fmt(v)}</span>`
@@ -1425,10 +1465,41 @@ function renderCard(country, productsForCountry) {
           <div>
             ${productRows ? `<div class="stat-label mb-1">产品库存</div><div class="product-list-capped">${productRows}</div>` : `<div class="text-center text-xs text-[color:var(--muted)] py-2">尚无产品</div>`}
           </div>
+
+          <!-- Recipe catalog: all products this country can make, expand to see what's needed -->
+          ${buildRecipeCatalog(id)}
         </div>
       </div>
     </section>
   `;
+}
+
+// ===== Recipe catalog: per-country, grouped by level, click product to expand =====
+function buildRecipeCatalog(country_id) {
+  const all = Object.keys(RECIPES)
+    .map(name => ({ name, ...RECIPES[name] }))
+    .filter(r => r.country === country_id);
+  if (!all.length) return '';
+  const byLvl = { 1: [], 2: [], 3: [], 4: [] };
+  all.forEach(r => { if (byLvl[r.level]) byLvl[r.level].push(r); });
+  const lvlBlocks = [1, 2, 3, 4].map(lvl => {
+    const list = byLvl[lvl];
+    if (!list.length) return '';
+    const items = list.map(r => {
+      const resChips = Object.entries(r.res || {}).map(([k, v]) =>
+        `<span class="cost-chip">${RES_LABEL[k] || k} ${v}</span>`
+      ).join('');
+      const semiChips = (r.semi || []).map(s =>
+        `<span class="cost-chip semi">${escapeHtml(s)} ×1</span>`
+      ).join('');
+      const inner = (resChips || semiChips)
+        ? `<div class="recipe-item-detail-title">🏭 制造所需</div><div>${resChips}${semiChips}</div>`
+        : `<div class="recipe-item-detail-title text-[color:var(--muted)]">无配方</div>`;
+      return `<span class="recipe-item" data-recipe-toggle>${escapeHtml(r.name)}<div class="recipe-item-detail">${inner}</div></span>`;
+    }).join('');
+    return `<div class="recipe-lvl-block"><div class="recipe-lvl-row"><span class="lvl-tag l${lvl}">L${lvl}</span><span class="text-[10px] text-[color:var(--muted)] tracking-widest uppercase">产品配方</span></div><div class="recipe-list">${items}</div></div>`;
+  }).join('');
+  return `<div class="recipe-catalog" data-recipe-catalog><div class="stat-label mb-2">📖 配方手册 · 点击产品查看所需资源</div>${lvlBlocks}</div>`;
 }
 
 function renderAll(countries, products) {
@@ -1675,6 +1746,7 @@ const QUICK_REASONS = {
   coins: ['完成任务奖励', '违规扣分', '运输失败赔偿', '活动表现优秀', '回合结算'],
   love:  ['助人为乐', '主动协作', '不公平行为', '体现关怀'],
   honor: ['任务表现优秀', '诚信加分', '违反规则', '团队领导力'],
+  _res:  ['活动奖励', '违规扣资源', '修正录入错误', '回合发放'],
 };
 
 const QUICK_DELTAS = {
@@ -1682,9 +1754,20 @@ const QUICK_DELTAS = {
   love:  [1, 2, -1, -2],
   honor: [1, 2, -1, -2],
   level: [1, -1],
+  _res:  [100, 500, 1000, -100, -500, -1000],
 };
 
-const FIELD_LABEL = { coins: '金币', love: '爱心值', honor: '荣誉值', level: '等级' };
+const FIELD_LABEL = {
+  coins: '金币', love: '爱心值', honor: '荣誉值', level: '等级',
+  water: '水', oil: '石油', wood: '木材',
+  metal: '金属', electricity: '电力', chips: '晶片',
+};
+
+// Resources share one preset set — map each resource field to '_res' key
+['water','oil','wood','metal','electricity','chips'].forEach(k => {
+  QUICK_DELTAS[k] = QUICK_DELTAS._res;
+  QUICK_REASONS[k] = QUICK_REASONS._res;
+});
 
 let pendingAdjust = null;
 
@@ -2669,6 +2752,65 @@ document.getElementById('reset-modal').addEventListener('click', (e) => {
   if (e.target.id === 'reset-modal') closeResetModal();
 });
 
+// ===== Cancel PO modal =====
+let cancelPOState = { po_id: null, product: null, level: null, country_id: null, busy: false };
+
+function openCancelPOModal(po_id, product, level, country_id) {
+  if (!requireMentor()) return;
+  cancelPOState = { po_id, product, level, country_id, busy: false };
+  const meta = COUNTRY_META[country_id] || { flag: '🏳', name: country_id };
+  const cost = getConfig('purchase_cost', 100);
+  document.getElementById('cancel-po-subtitle').innerHTML =
+    `${meta.flag} ${escapeHtml(meta.name)} · <span class="lvl-tag l${level} mx-1">L${level}</span>${escapeHtml(product)} · #${escapeHtml(po_id)}`;
+  document.getElementById('cancel-po-cost').textContent = fmt(cost);
+  document.getElementById('cancel-po-refund-amt').textContent = fmt(cost);
+  document.getElementById('cancel-po-refund').disabled = false;
+  document.getElementById('cancel-po-no-refund').disabled = false;
+  document.getElementById('cancel-po-modal').classList.remove('hidden');
+}
+function closeCancelPOModal() {
+  document.getElementById('cancel-po-modal').classList.add('hidden');
+  cancelPOState = { po_id: null, product: null, level: null, country_id: null, busy: false };
+}
+async function submitCancelPO(refund) {
+  if (!WEBAPP_URL) { toast('未配置 WEBAPP_URL', 'err'); return; }
+  if (!requireMentor()) return;
+  if (!cancelPOState.po_id || cancelPOState.busy) return;
+  cancelPOState.busy = true;
+  document.getElementById('cancel-po-refund').disabled = true;
+  document.getElementById('cancel-po-no-refund').disabled = true;
+  try {
+    const params = new URLSearchParams({
+      action: 'purchase_cancel',
+      po_id: cancelPOState.po_id,
+      refund: refund ? '1' : '0',
+      reason: refund ? '导师取消订单 (退款)' : '导师取消订单 (无退款)',
+      mentor: MENTOR_TOKEN, t: String(Date.now()),
+    });
+    const res = await fetch(WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + params.toString(), { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown');
+    const meta = COUNTRY_META[cancelPOState.country_id] || { flag: '🏳', name: cancelPOState.country_id };
+    const tag = refund ? `🔁 退 ${fmt(data.refund_amount)} 金币` : '🚫 无退款';
+    toast(`${meta.flag} ${meta.name} · 取消 ${cancelPOState.product} · ${tag}`, 'ok', 3000);
+    closeCancelPOModal();
+    fetchData();
+  } catch (err) {
+    toast('取消失败: ' + (err.message || err), 'err', 3500);
+    cancelPOState.busy = false;
+    document.getElementById('cancel-po-refund').disabled = false;
+    document.getElementById('cancel-po-no-refund').disabled = false;
+  }
+}
+document.getElementById('cancel-po-close').addEventListener('click', closeCancelPOModal);
+document.getElementById('cancel-po-close-2').addEventListener('click', closeCancelPOModal);
+document.getElementById('cancel-po-refund').addEventListener('click', () => submitCancelPO(true));
+document.getElementById('cancel-po-no-refund').addEventListener('click', () => submitCancelPO(false));
+document.getElementById('cancel-po-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'cancel-po-modal') closeCancelPOModal();
+});
+
 // ===== Purchase Center modal (standalone) =====
 let purchaseState = { country_id: null, busy: false };
 
@@ -3159,6 +3301,39 @@ document.getElementById('cards').addEventListener('click', (e) => {
     const section = upBar.closest('section');
     const det = section && section.querySelector('[data-upgrade-detail]');
     if (det) det.classList.toggle('hidden');
+    return;
+  }
+  // recipe catalog: toggle item (accordion — single open per country)
+  const recipeItem = e.target.closest('[data-recipe-toggle]');
+  if (recipeItem) {
+    // ignore clicks inside the detail panel itself (so chips don't close the item)
+    if (e.target.closest('.recipe-item-detail')) return;
+    const catalog = recipeItem.closest('[data-recipe-catalog]');
+    const wasOpen = recipeItem.classList.contains('expanded');
+    if (catalog) {
+      catalog.querySelectorAll('.recipe-item.expanded').forEach(el => {
+        el.classList.remove('expanded');
+        const d = el.querySelector('.recipe-item-detail');
+        if (d) d.classList.remove('open');
+      });
+    }
+    if (!wasOpen) {
+      recipeItem.classList.add('expanded');
+      const d = recipeItem.querySelector('.recipe-item-detail');
+      if (d) d.classList.add('open');
+    }
+    return;
+  }
+  // cancel PO button (must come BEFORE po-toggle since button is inside .po-detail)
+  const poCancel = e.target.closest('[data-po-cancel]');
+  if (poCancel) {
+    e.stopPropagation();
+    openCancelPOModal(
+      poCancel.dataset.poCancel,
+      poCancel.dataset.poProduct,
+      Number(poCancel.dataset.poLevel) || 0,
+      poCancel.dataset.poCountry,
+    );
     return;
   }
   // toggle PO recipe detail

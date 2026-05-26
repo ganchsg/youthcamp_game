@@ -3,7 +3,7 @@ import { err, json, resolveCountryToken, resolveMentorToken } from './util';
 import { dumpData } from './actions/dump';
 import { adjust } from './actions/adjust';
 import { produce } from './actions/produce';
-import { purchaseApply } from './actions/purchase';
+import { purchaseApply, purchaseCancel } from './actions/purchase';
 import { rd } from './actions/rd';
 import { buy } from './actions/buy';
 import { sell } from './actions/sell';
@@ -55,7 +55,8 @@ export default {
         const country_id = await resolveCountryToken(env, countryToken);
         if (!country_id) return err('invalid country token');
         if (action === 'adjust' || action === 'produce' || action === 'purchase_apply' ||
-            action === 'rd' || action === 'reset' || action === 'buy' || action === 'sell') {
+            action === 'purchase_cancel' || action === 'rd' || action === 'reset' ||
+            action === 'buy' || action === 'sell') {
           return err('只读模式不允许修改数据');
         }
         if (action === 'logs') {
@@ -79,7 +80,8 @@ export default {
       switch (action) {
         case 'adjust':         return adjust(env, params);
         case 'produce':        return produce(env, params);
-        case 'purchase_apply': return purchaseApply(env, params);
+        case 'purchase_apply':  return purchaseApply(env, params);
+        case 'purchase_cancel': return purchaseCancel(env, params);
         case 'rd':             return rd(env, params);
         case 'reset':          return reset(env, params);
         case 'buy':            return buy(env, params);

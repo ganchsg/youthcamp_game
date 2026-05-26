@@ -42,6 +42,13 @@ export async function rd(env: Env, b: RDBody): Promise<Response> {
     return ok({ success: false, cost, new_coins: afterCost });
   }
 
+  // Log the cost as a standalone audit row BEFORE picking the prize.
+  // (Without this, the prize log only shows the prize field's delta, and a
+  //  pure sum-of-delta replay can't see the -cost. Adding rd_cost makes the
+  //  audit chain symmetric with rd_fail.)
+  await writeLog(env, mentor, country_id, 'rd_cost', 'coins', -cost, curCoins, afterCost,
+                 `🧪 研发投入 -${cost} 金币 (准备抽奖)`, reason);
+
   // Pick prize
   const pool = await env.DB.prepare('SELECT * FROM rd_prizes').all<RDPrize>();
   const prizes = pool.results ?? [];
